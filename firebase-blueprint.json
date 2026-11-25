@@ -1,0 +1,373 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private authenticated baker/chef workspace profile.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "kitchenName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["baker", "pastry_chef", "instructor"]
+        },
+        "targetFoodCostPct": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "kitchenName", "role", "targetFoodCostPct", "createdAt", "updatedAt"]
+    },
+    "RecipeBookmark": {
+      "title": "RecipeBookmark",
+      "description": "User favorite status and mise-en-place checklist notes for a manual recipe.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipeSlug": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "isFavorite": {
+          "type": "boolean"
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "recipeSlug", "isFavorite", "notes", "updatedAt"]
+    },
+    "ProductionLog": {
+      "title": "ProductionLog",
+      "description": "Daily kitchen batch production schedule and yield record (Appendix A).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "product": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "batchSize": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "startTime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "endTime": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "actualYield": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "operator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "status": {
+          "type": "string",
+          "enum": ["scheduled", "in_progress", "completed"]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "date", "product", "batchSize", "startTime", "endTime", "actualYield", "operator", "status", "notes", "createdAt", "updatedAt"]
+    },
+    "TemperatureLog": {
+      "title": "TemperatureLog",
+      "description": "HACCP cold-chain, oven, and chocolate temperature monitoring record (Appendix B).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "date": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "time": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "equipment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "category": {
+          "type": "string",
+          "enum": ["chilled", "frozen", "ambient", "oven", "proofer", "chocolate"]
+        },
+        "temperatureC": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["nominal", "warning", "critical"]
+        },
+        "correctiveAction": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "initials": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "date", "time", "equipment", "category", "temperatureC", "status", "correctiveAction", "initials", "createdAt", "updatedAt"]
+    },
+    "SensoryEvaluation": {
+      "title": "SensoryEvaluation",
+      "description": "Quality control sensory scoring sheet (Appendix D).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "recipeTitle": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "batchDate": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "evaluator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "appearance": {
+          "type": "number"
+        },
+        "colour": {
+          "type": "number"
+        },
+        "texture": {
+          "type": "number"
+        },
+        "flavour": {
+          "type": "number"
+        },
+        "aroma": {
+          "type": "number"
+        },
+        "overall": {
+          "type": "number"
+        },
+        "comments": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "recipeTitle", "batchDate", "evaluator", "appearance", "colour", "texture", "flavour", "aroma", "overall", "comments", "createdAt", "updatedAt"]
+    },
+    "CustomRecipe": {
+      "title": "CustomRecipe",
+      "description": "Standardized kitchen recipe developed and saved by the user (Appendix C).",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "classification": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "targetYield": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "prepTime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "bakeTime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "ovenTemp": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "ingredients": {
+          "type": "array",
+          "description": "List of formatted ingredient rows (name | amount | unit | unitCost)"
+        },
+        "methodSteps": {
+          "type": "array",
+          "description": "Ordered production steps"
+        },
+        "criticalControlPoints": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "qualityStandard": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "allergens": {
+          "type": "array",
+          "description": "Declared allergen labels"
+        },
+        "shelfLife": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "portions": {
+          "type": "number"
+        },
+        "costPerBatch": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerId", "title", "category", "classification", "targetYield", "prepTime", "bakeTime", "ovenTemp", "ingredients", "methodSteps", "criticalControlPoints", "qualityStandard", "allergens", "shelfLife", "portions", "costPerBatch", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile and kitchen workspace settings, readable and writable only by the owning user."
+    },
+    "/users/{userId}/bookmarks/{recipeSlug}": {
+      "schema": { "$ref": "#/entities/RecipeBookmark" },
+      "description": "Per-user recipe favorites and private kitchen bench notes."
+    },
+    "/productionLogs/{logId}": {
+      "schema": { "$ref": "#/entities/ProductionLog" },
+      "description": "Daily kitchen production schedule records scoped to ownerId."
+    },
+    "/temperatureLogs/{logId}": {
+      "schema": { "$ref": "#/entities/TemperatureLog" },
+      "description": "Equipment temperature monitoring logs scoped to ownerId."
+    },
+    "/sensoryEvaluations/{evalId}": {
+      "schema": { "$ref": "#/entities/SensoryEvaluation" },
+      "description": "Sensory evaluation QC scores scoped to ownerId."
+    },
+    "/customRecipes/{recipeId}": {
+      "schema": { "$ref": "#/entities/CustomRecipe" },
+      "description": "User-authored standardized kitchen recipes scoped to ownerId."
+    }
+  }
+}

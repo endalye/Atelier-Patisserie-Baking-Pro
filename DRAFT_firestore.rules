@@ -1,0 +1,275 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // === GLOBAL PRIMITIVES ===
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateStr(d) {
+      return d is string && d.size() == 10 && d.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // === VALIDATION BLUEPRINTS ===
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'kitchenName', 'role', 'targetFoodCostPct', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'kitchenName', 'role', 'targetFoodCostPct', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100
+        && data.kitchenName is string && data.kitchenName.size() >= 1 && data.kitchenName.size() <= 120
+        && data.role in ['baker', 'pastry_chef', 'instructor']
+        && data.targetFoodCostPct is number && data.targetFoodCostPct >= 10 && data.targetFoodCostPct <= 60
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRecipeBookmark(data, userId, recipeSlug) {
+      return data.keys().hasAll(['ownerId', 'recipeSlug', 'isFavorite', 'notes', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'recipeSlug', 'isFavorite', 'notes', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.ownerId == userId
+        && isValidId(data.recipeSlug)
+        && data.recipeSlug == recipeSlug
+        && data.recipeSlug.size() <= 80
+        && data.isFavorite is bool
+        && data.notes is string && data.notes.size() <= 500
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProductionLog(data) {
+      return data.keys().hasAll(['ownerId', 'date', 'product', 'batchSize', 'startTime', 'endTime', 'actualYield', 'operator', 'status', 'notes', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'date', 'product', 'batchSize', 'startTime', 'endTime', 'actualYield', 'operator', 'status', 'notes', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidDateStr(data.date)
+        && data.product is string && data.product.size() >= 1 && data.product.size() <= 120
+        && data.batchSize is string && data.batchSize.size() >= 1 && data.batchSize.size() <= 40
+        && data.startTime is string && data.startTime.size() >= 1 && data.startTime.size() <= 10
+        && data.endTime is string && data.endTime.size() <= 10
+        && data.actualYield is string && data.actualYield.size() <= 60
+        && data.operator is string && data.operator.size() >= 1 && data.operator.size() <= 80
+        && data.status in ['scheduled', 'in_progress', 'completed']
+        && data.notes is string && data.notes.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTemperatureLog(data) {
+      return data.keys().hasAll(['ownerId', 'date', 'time', 'equipment', 'category', 'temperatureC', 'status', 'correctiveAction', 'initials', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'date', 'time', 'equipment', 'category', 'temperatureC', 'status', 'correctiveAction', 'initials', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && isValidDateStr(data.date)
+        && data.time is string && data.time.size() >= 1 && data.time.size() <= 10
+        && data.equipment is string && data.equipment.size() >= 1 && data.equipment.size() <= 80
+        && data.category in ['chilled', 'frozen', 'ambient', 'oven', 'proofer', 'chocolate']
+        && data.temperatureC is number && data.temperatureC >= -50 && data.temperatureC <= 600
+        && data.status in ['nominal', 'warning', 'critical']
+        && data.correctiveAction is string && data.correctiveAction.size() <= 300
+        && data.initials is string && data.initials.size() >= 1 && data.initials.size() <= 10
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSensoryEvaluation(data) {
+      return data.keys().hasAll(['ownerId', 'recipeTitle', 'batchDate', 'evaluator', 'appearance', 'colour', 'texture', 'flavour', 'aroma', 'overall', 'comments', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'recipeTitle', 'batchDate', 'evaluator', 'appearance', 'colour', 'texture', 'flavour', 'aroma', 'overall', 'comments', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.recipeTitle is string && data.recipeTitle.size() >= 1 && data.recipeTitle.size() <= 120
+        && isValidDateStr(data.batchDate)
+        && data.evaluator is string && data.evaluator.size() >= 1 && data.evaluator.size() <= 80
+        && data.appearance is number && data.appearance >= 1 && data.appearance <= 5
+        && data.colour is number && data.colour >= 1 && data.colour <= 5
+        && data.texture is number && data.texture >= 1 && data.texture <= 5
+        && data.flavour is number && data.flavour >= 1 && data.flavour <= 5
+        && data.aroma is number && data.aroma >= 1 && data.aroma <= 5
+        && data.overall is number && data.overall >= 1 && data.overall <= 5
+        && data.comments is string && data.comments.size() <= 600
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCustomRecipe(data) {
+      return data.keys().hasAll(['ownerId', 'title', 'category', 'classification', 'targetYield', 'prepTime', 'bakeTime', 'ovenTemp', 'ingredients', 'methodSteps', 'criticalControlPoints', 'qualityStandard', 'allergens', 'shelfLife', 'portions', 'costPerBatch', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'title', 'category', 'classification', 'targetYield', 'prepTime', 'bakeTime', 'ovenTemp', 'ingredients', 'methodSteps', 'criticalControlPoints', 'qualityStandard', 'allergens', 'shelfLife', 'portions', 'costPerBatch', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.ownerId == request.auth.uid
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 60
+        && data.classification is string && data.classification.size() >= 1 && data.classification.size() <= 80
+        && data.targetYield is string && data.targetYield.size() >= 1 && data.targetYield.size() <= 80
+        && data.prepTime is string && data.prepTime.size() >= 1 && data.prepTime.size() <= 40
+        && data.bakeTime is string && data.bakeTime.size() >= 1 && data.bakeTime.size() <= 40
+        && data.ovenTemp is string && data.ovenTemp.size() <= 40
+        && data.ingredients is list && data.ingredients.size() >= 1 && data.ingredients.size() <= 40 && data.ingredients[0] is string
+        && data.methodSteps is list && data.methodSteps.size() >= 1 && data.methodSteps.size() <= 30 && data.methodSteps[0] is string
+        && data.criticalControlPoints is string && data.criticalControlPoints.size() <= 400
+        && data.qualityStandard is string && data.qualityStandard.size() <= 300
+        && data.allergens is list && data.allergens.size() <= 15 && (data.allergens.size() == 0 || data.allergens[0] is string)
+        && data.shelfLife is string && data.shelfLife.size() <= 120
+        && data.portions is number && data.portions >= 1 && data.portions <= 1000
+        && data.costPerBatch is number && data.costPerBatch >= 0 && data.costPerBatch <= 100000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // === COLLECTION RULES ===
+
+    // Private User Profiles (PII Isolated - no list allowed)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'kitchenName', 'role', 'targetFoodCostPct', 'updatedAt']);
+      allow delete: if false;
+
+      // User Recipe Bookmarks & Notes (Master Gate to parent user doc)
+      match /bookmarks/{recipeSlug} {
+        allow get: if isValidId(userId) && isValidId(recipeSlug) && isOwner(userId)
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isValidId(userId) && isValidId(recipeSlug)
+          && isOwner(userId)
+          && isValidRecipeBookmark(incoming(), userId, recipeSlug)
+          && incoming().updatedAt == request.time
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow update: if isValidId(userId) && isValidId(recipeSlug)
+          && isOwner(userId)
+          && isValidRecipeBookmark(incoming(), userId, recipeSlug)
+          && incoming().ownerId == existing().ownerId
+          && incoming().recipeSlug == existing().recipeSlug
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['isFavorite', 'notes', 'updatedAt'])
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+        allow delete: if isValidId(userId) && isValidId(recipeSlug) && isOwner(userId)
+          && get(/databases/$(database)/documents/users/$(userId)).data.uid == request.auth.uid;
+      }
+    }
+
+    // Daily Production Records (Appendix A)
+    match /productionLogs/{logId} {
+      allow get: if isValidId(logId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidProductionLog(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidProductionLog(incoming())
+        && existing().ownerId == request.auth.uid
+        && existing().status != 'completed'
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().status == 'in_progress' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actualYield', 'endTime', 'notes', 'updatedAt'])) ||
+          (incoming().status == 'completed' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'actualYield', 'endTime', 'notes', 'updatedAt'])) ||
+          (incoming().status == existing().status && incoming().diff(existing()).affectedKeys().hasOnly(['product', 'batchSize', 'startTime', 'endTime', 'actualYield', 'operator', 'notes', 'updatedAt']))
+        );
+      allow delete: if isValidId(logId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+
+    // Temperature Monitoring Logs (Appendix B)
+    match /temperatureLogs/{logId} {
+      allow get: if isValidId(logId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidTemperatureLog(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(logId)
+        && isVerifiedUser()
+        && isValidTemperatureLog(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['correctiveAction', 'temperatureC', 'status', 'updatedAt']);
+      allow delete: if isValidId(logId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+
+    // Sensory Evaluation Forms (Appendix D)
+    match /sensoryEvaluations/{evalId} {
+      allow get: if isValidId(evalId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(evalId)
+        && isVerifiedUser()
+        && isValidSensoryEvaluation(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(evalId)
+        && isVerifiedUser()
+        && isValidSensoryEvaluation(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['appearance', 'colour', 'texture', 'flavour', 'aroma', 'overall', 'comments', 'updatedAt']);
+      allow delete: if isValidId(evalId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+
+    // Custom Standardized Recipes (Appendix C)
+    match /customRecipes/{recipeId} {
+      allow get: if isValidId(recipeId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+      allow list: if isVerifiedUser() && resource.data.ownerId == request.auth.uid;
+      allow create: if isValidId(recipeId)
+        && isVerifiedUser()
+        && isValidCustomRecipe(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(recipeId)
+        && isVerifiedUser()
+        && isValidCustomRecipe(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'classification', 'targetYield', 'prepTime', 'bakeTime', 'ovenTemp', 'ingredients', 'methodSteps', 'criticalControlPoints', 'qualityStandard', 'allergens', 'shelfLife', 'portions', 'costPerBatch', 'updatedAt']);
+      allow delete: if isValidId(recipeId) && isVerifiedUser() && existing().ownerId == request.auth.uid;
+    }
+  }
+}

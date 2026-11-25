@@ -1,0 +1,6 @@
+{
+  "name": "Atelier Patisserie & Baking Pro",
+  "description": "Professional Baking & Confectionery Technology SaaS workspace with interactive metric training manual, 50+ standardized scalable recipes, costing engine, and food safety logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
