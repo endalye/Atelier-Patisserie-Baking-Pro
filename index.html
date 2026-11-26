@@ -11,11 +11,22 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Ethiopic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
     <script>
       try {
         if (localStorage.getItem('atelier-theme') === 'dark') {
           document.documentElement.classList.add('dark');
+        }
+        var savedLang = localStorage.getItem('atelier-lang');
+        if (savedLang === 'ar') {
+          document.documentElement.lang = 'ar';
+          document.documentElement.dir = 'rtl';
+        } else if (savedLang === 'am') {
+          document.documentElement.lang = 'am';
+          document.documentElement.dir = 'ltr';
+        } else {
+          document.documentElement.lang = 'en';
+          document.documentElement.dir = 'ltr';
         }
       } catch (e) {}
     </script>

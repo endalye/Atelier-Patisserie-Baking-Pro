@@ -14,12 +14,44 @@
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
   }
 
+  html[lang="ar"] {
+    --font-display: 'Cairo', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-body: 'Cairo', 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  html[lang="am"] {
+    --font-display: 'Noto Sans Ethiopic', 'Plus Jakarta Sans', 'Nyala', 'Abyssinica SIL', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-body: 'Noto Sans Ethiopic', 'DM Sans', 'Nyala', 'Abyssinica SIL', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  html[lang="am"] body {
+    line-height: 1.65;
+  }
+
   html {
     font-family: var(--font-body);
     color: #0f172a;
     background-color: #f8fafc;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  html[lang="ar"] body,
+  html[lang="ar"] h1,
+  html[lang="ar"] h2,
+  html[lang="ar"] h3,
+  html[lang="ar"] h4,
+  html[lang="ar"] p,
+  html[lang="ar"] span,
+  html[lang="ar"] button,
+  html[lang="ar"] label,
+  html[lang="ar"] input,
+  html[lang="ar"] select,
+  html[lang="ar"] textarea,
+  html[lang="ar"] td,
+  html[lang="ar"] th,
+  html[lang="ar"] li {
+    letter-spacing: 0 !important;
   }
 
   html.dark {

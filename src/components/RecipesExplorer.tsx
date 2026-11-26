@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bookmark,
   Check,
@@ -26,6 +26,27 @@ import {
   upsertRecipeBookmark,
 } from '../lib/kitchenRepository';
 import { useAuth } from './AuthContext';
+import { useI18n } from '../i18n/I18nContext';
+import {
+  ALLERGEN_AM,
+  ALLERGEN_AR,
+  MASTER_SECTION_AM,
+  MASTER_SECTION_AR,
+  RECIPE_CATEGORY_AM,
+  RECIPE_CATEGORY_AR,
+} from '../i18n/translations';
+import {
+  getRecipeSearchBlob,
+  getRecipeTitle,
+  localizeClassification,
+  localizeIngredientName,
+  localizeStorage,
+  localizeTemp,
+  localizeTime,
+  localizeUnit,
+  localizeYield,
+} from '../i18n/recipesAr';
+import { localizeRecipeDetail } from '../i18n/coreRecipesAr';
 
 interface RecipesExplorerProps {
   bookmarks: Record<string, RecipeBookmarkItem>;
@@ -61,6 +82,7 @@ export function RecipesExplorer({
   initialFavoritesOnly = false,
 }: RecipesExplorerProps) {
   const { user, profile, signInWithGoogle } = useAuth();
+  const { lang, isRtl, t } = useI18n();
   const detailRef = useRef<HTMLDivElement>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedBookSection, setSelectedBookSection] = useState<string>('All');
@@ -84,28 +106,97 @@ export function RecipesExplorer({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<RecipeCategory>('Breads & Yeasted Products');
-  const [newClassification, setNewClassification] = useState('Standardized Kitchen Formula');
-  const [newYield, setNewYield] = useState('10 portions');
+  const [newClassification, setNewClassification] = useState(() => t('defaultCustomClassification'));
+  const [newYield, setNewYield] = useState(() => t('defaultCustomYield'));
   const [newPortions, setNewPortions] = useState(10);
-  const [newPrepTime, setNewPrepTime] = useState('25 min');
-  const [newBakeTime, setNewBakeTime] = useState('30 min');
-  const [newOvenTemp, setNewOvenTemp] = useState('190 °C');
-  const [newIngredientsText, setNewIngredientsText] = useState(
-    'Strong bread flour | 500 | g\nWater | 325 | ml\nInstant yeast | 7 | g\nFine salt | 10 | g'
+  const [newPrepTime, setNewPrepTime] = useState(() => t('defaultCustomPrep'));
+  const [newBakeTime, setNewBakeTime] = useState(() => t('defaultCustomBake'));
+  const [newOvenTemp, setNewOvenTemp] = useState(() => t('defaultCustomTemp'));
+  const [newIngredientsText, setNewIngredientsText] = useState(() =>
+    t('defaultCustomIngredients')
   );
-  const [newStepsText, setNewStepsText] = useState(
-    'Weigh all ingredients using a calibrated digital scale.\nMix to full gluten development and bulk ferment 90 minutes.\nShape, final proof, and bake at 190 °C until golden.'
-  );
-  const [newQualityStandard, setNewQualityStandard] = useState(
-    'Even rise, crisp golden crust, tender crumb.'
-  );
-  const [newCriticalPoints, setNewCriticalPoints] = useState(
-    'Verify dough temperature 24–26 °C and calibrated oven preheat.'
-  );
-  const [newAllergensText, setNewAllergensText] = useState('Wheat');
-  const [newShelfLife, setNewShelfLife] = useState('2 days ambient · 3 months frozen');
+  const [newStepsText, setNewStepsText] = useState(() => t('defaultCustomSteps'));
+  const [newQualityStandard, setNewQualityStandard] = useState(() => t('defaultCustomQuality'));
+  const [newCriticalPoints, setNewCriticalPoints] = useState(() => t('defaultCustomCcp'));
+  const [newAllergensText, setNewAllergensText] = useState(() => t('defaultCustomAllergens'));
+  const [newShelfLife, setNewShelfLife] = useState(() => t('defaultCustomShelfLife'));
   const [newCostBatch, setNewCostBatch] = useState(3.2);
   const [creatingRecipe, setCreatingRecipe] = useState(false);
+
+  const prevModalDefaultsRef = useRef({
+    classification: t('defaultCustomClassification'),
+    yieldText: t('defaultCustomYield'),
+    prepTime: t('defaultCustomPrep'),
+    bakeTime: t('defaultCustomBake'),
+    ovenTemp: t('defaultCustomTemp'),
+    ingredients: t('defaultCustomIngredients'),
+    steps: t('defaultCustomSteps'),
+    quality: t('defaultCustomQuality'),
+    ccp: t('defaultCustomCcp'),
+    allergens: t('defaultCustomAllergens'),
+    shelfLife: t('defaultCustomShelfLife'),
+  });
+
+  useEffect(() => {
+    const prev = prevModalDefaultsRef.current;
+    const next = {
+      classification: t('defaultCustomClassification'),
+      yieldText: t('defaultCustomYield'),
+      prepTime: t('defaultCustomPrep'),
+      bakeTime: t('defaultCustomBake'),
+      ovenTemp: t('defaultCustomTemp'),
+      ingredients: t('defaultCustomIngredients'),
+      steps: t('defaultCustomSteps'),
+      quality: t('defaultCustomQuality'),
+      ccp: t('defaultCustomCcp'),
+      allergens: t('defaultCustomAllergens'),
+      shelfLife: t('defaultCustomShelfLife'),
+    };
+    setNewClassification((v) => (v === prev.classification ? next.classification : v));
+    setNewYield((v) => (v === prev.yieldText ? next.yieldText : v));
+    setNewPrepTime((v) => (v === prev.prepTime ? next.prepTime : v));
+    setNewBakeTime((v) => (v === prev.bakeTime ? next.bakeTime : v));
+    setNewOvenTemp((v) => (v === prev.ovenTemp ? next.ovenTemp : v));
+    setNewIngredientsText((v) => (v === prev.ingredients ? next.ingredients : v));
+    setNewStepsText((v) => (v === prev.steps ? next.steps : v));
+    setNewQualityStandard((v) => (v === prev.quality ? next.quality : v));
+    setNewCriticalPoints((v) => (v === prev.ccp ? next.ccp : v));
+    setNewAllergensText((v) => (v === prev.allergens ? next.allergens : v));
+    setNewShelfLife((v) => (v === prev.shelfLife ? next.shelfLife : v));
+    prevModalDefaultsRef.current = next;
+  }, [lang, t]);
+
+  const getCategoryLabel = (cat: string) =>
+    lang === 'ar'
+      ? RECIPE_CATEGORY_AR[cat] || cat
+      : lang === 'am'
+        ? RECIPE_CATEGORY_AM[cat] || cat
+        : cat;
+
+  const getSectionLabel = (sec: string) =>
+    lang === 'ar'
+      ? MASTER_SECTION_AR[sec] || sec
+      : lang === 'am'
+        ? MASTER_SECTION_AM[sec] || sec
+        : sec;
+
+  const getAllergenLabel = (allergen: string) => {
+    if (lang === 'ar') {
+      if (ALLERGEN_AR[allergen]) return ALLERGEN_AR[allergen];
+      const entry = Object.entries(ALLERGEN_AR).find(
+        ([k]) => k.toLowerCase() === allergen.trim().toLowerCase()
+      );
+      return entry ? entry[1] : allergen;
+    }
+    if (lang === 'am') {
+      if (ALLERGEN_AM[allergen]) return ALLERGEN_AM[allergen];
+      const entry = Object.entries(ALLERGEN_AM).find(
+        ([k]) => k.toLowerCase() === allergen.trim().toLowerCase()
+      );
+      return entry ? entry[1] : allergen;
+    }
+    return allergen;
+  };
 
   // Merge manual + user custom recipes into unified list
   const allRecipes = useMemo(() => {
@@ -133,12 +224,15 @@ export function RecipesExplorer({
             amount: Number.isFinite(amt) ? amt : null,
             unit,
             rawQuantity: amt !== null && Number.isFinite(amt) ? `${amt} ${unit}` : line,
-            isFlour: name.toLowerCase().includes('flour'),
+            isFlour:
+              name.toLowerCase().includes('flour') ||
+              name.includes('دقيق') ||
+              name.includes('ዱቄት'),
             unitCostPerKgOrL: 2.5,
           };
         }),
         steps: cr.methodSteps,
-        qualityStandard: cr.qualityStandard || 'Meets kitchen sensory standard.',
+        qualityStandard: cr.qualityStandard || t('customDefaultQualityFallback'),
         storage: cr.shelfLife,
         allergens: cr.allergens || [],
         chefNote: cr.criticalControlPoints,
@@ -146,7 +240,7 @@ export function RecipesExplorer({
       })
     );
     return [...mappedCustom, ...STANDARDIZED_RECIPES];
-  }, [customRecipes]);
+  }, [customRecipes, t]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -169,24 +263,31 @@ export function RecipesExplorer({
       if (favoritesOnly && !bookmarks[r.id]?.isFavorite) return false;
       if (excludedAllergens.length > 0) {
         const hasExcluded = r.allergens.some((a) =>
-          excludedAllergens.some((ex) => a.toLowerCase().includes(ex.toLowerCase()))
+          excludedAllergens.some((ex) => {
+            const arEx = ALLERGEN_AR[ex];
+            const amEx = ALLERGEN_AM[ex];
+            return (
+              a.toLowerCase().includes(ex.toLowerCase()) ||
+              (arEx ? a.includes(arEx) : false) ||
+              (amEx ? a.includes(amEx) : false)
+            );
+          })
         );
         if (hasExcluded) return false;
       }
       if (q) {
         const inNumber = isNumericQuery && String(r.number) === numQuery;
-        const inTitle = normalizeSearch(r.title).includes(q);
-        const inAlias = r.searchAliases?.some((a) => normalizeSearch(a).includes(q)) ?? false;
-        const inIng = r.ingredients.some((i) => normalizeSearch(i.name).includes(q));
-        const inClass = normalizeSearch(r.classification).includes(q);
-        const inSection = r.bookSection ? normalizeSearch(r.bookSection).includes(q) : false;
-        if (!inNumber && !inTitle && !inAlias && !inIng && !inClass && !inSection) return false;
+        const inBlob = normalizeSearch(getRecipeSearchBlob(r)).includes(q);
+        const inCat = normalizeSearch(getCategoryLabel(r.category)).includes(q);
+        if (!inNumber && !inBlob && !inCat) return false;
       }
       return true;
     });
 
     if (sortMode === 'alpha') {
-      return [...list].sort((a, b) => a.title.localeCompare(b.title));
+      return [...list].sort((a, b) =>
+        getRecipeTitle(a, lang).localeCompare(getRecipeTitle(b, lang), lang)
+      );
     }
     return list;
   }, [
@@ -198,6 +299,7 @@ export function RecipesExplorer({
     searchQuery,
     bookmarks,
     sortMode,
+    lang,
   ]);
 
   const activeRecipe = useMemo(() => {
@@ -207,6 +309,11 @@ export function RecipesExplorer({
       STANDARDIZED_RECIPES[0]
     );
   }, [allRecipes, activeRecipeId, filteredRecipes]);
+
+  const activeDetailAr = useMemo(
+    () => localizeRecipeDetail(activeRecipe, lang),
+    [activeRecipe, lang]
+  );
 
   const totalFlourWeight = useMemo(() => {
     return activeRecipe.ingredients
@@ -221,7 +328,8 @@ export function RecipesExplorer({
     }
     return activeRecipe.ingredients.reduce((sum, item) => {
       if (!item.amount) return sum;
-      const unitFactor = item.unit === 'g' || item.unit === 'ml' ? item.amount / 1000 : item.amount * 0.05;
+      const unitFactor =
+        item.unit === 'g' || item.unit === 'ml' ? item.amount / 1000 : item.amount * 0.05;
       const cost = unitFactor * (item.unitCostPerKgOrL ?? 2.5) * multiplier;
       return sum + cost;
     }, 0);
@@ -303,7 +411,7 @@ export function RecipesExplorer({
         .map((s) => s.trim())
         .filter(Boolean);
       const allergenList = newAllergensText
-        .split(',')
+        .split(/[،,]/)
         .map((s) => s.trim())
         .filter(Boolean);
 
@@ -333,6 +441,14 @@ export function RecipesExplorer({
 
   const activeBookmark = bookmarks[activeRecipe.id];
   const isCustomActive = customRecipes.some((c) => c.id === activeRecipe.id);
+  const displaySteps = activeDetailAr.steps ?? activeRecipe.steps;
+  const displayEquipment = activeDetailAr.equipment ?? activeRecipe.equipment;
+  const displayQualityStandard = activeDetailAr.qualityStandard ?? activeRecipe.qualityStandard;
+  const displayFaultCorrection = activeDetailAr.faultCorrection ?? activeRecipe.faultCorrection;
+  const displayStorage =
+    activeDetailAr.storage ?? localizeStorage(activeRecipe.storage, lang);
+  const displayChefNote = activeDetailAr.chefNote ?? activeRecipe.chefNote;
+  const joinDot = ' · ';
 
   return (
     <div className="space-y-6">
@@ -340,10 +456,10 @@ export function RecipesExplorer({
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Standardized Metric Recipe Bench
+            {t('recipeBenchTitle')}
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            {allRecipes.length} standardized formulations with dynamic batch scaling, baker&apos;s percentages, and food-cost pricing.
+            {t('recipeBenchDesc', { count: allRecipes.length })}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -354,7 +470,7 @@ export function RecipesExplorer({
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap shrink-0"
             >
               <Plus className="w-4 h-4" />
-              New Custom Recipe
+              {t('newCustomRecipe')}
             </button>
           ) : (
             <button
@@ -363,7 +479,7 @@ export function RecipesExplorer({
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
             >
               <Bookmark className="w-4 h-4" />
-              Sign In to Save Custom Recipes
+              {t('signInSaveCustom')}
             </button>
           )}
         </div>
@@ -373,20 +489,20 @@ export function RecipesExplorer({
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
         <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute start-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search #number, recipe name, ingredient, or index section..."
-              className="w-full pl-9 pr-8 py-2 text-sm bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              placeholder={t('searchBenchPlaceholder')}
+              className="w-full ps-9 pe-8 py-2 text-sm bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                aria-label="Clear search"
+                className="absolute end-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                aria-label={t('clearSearchAria')}
               >
                 <X className="w-4 h-4" />
               </button>
@@ -397,13 +513,13 @@ export function RecipesExplorer({
             <select
               value={selectedBookSection}
               onChange={(e) => setSelectedBookSection(e.target.value)}
-              aria-label="Filter by Master Index section"
+              aria-label={t('filterSectionAria')}
               className="px-2.5 py-2 text-xs font-medium bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-200"
             >
-              <option value="All">All Manual Index Sections</option>
+              <option value="All">{t('allManualSections')}</option>
               {MASTER_INDEX_SECTIONS.map((sec) => (
                 <option key={sec} value={sec}>
-                  {sec}
+                  {getSectionLabel(sec)}
                 </option>
               ))}
             </select>
@@ -411,11 +527,11 @@ export function RecipesExplorer({
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as 'number' | 'alpha')}
-              aria-label="Sort recipe list"
+              aria-label={t('sortRecipeAria')}
               className="px-2.5 py-2 text-xs font-medium bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-700 dark:text-slate-200"
             >
-              <option value="number">Sort: #1 → #{allRecipes.length}</option>
-              <option value="alpha">Sort: A → Z</option>
+              <option value="number">{t('sortByNumber', { count: allRecipes.length })}</option>
+              <option value="alpha">{t('sortAlpha')}</option>
             </select>
 
             <button
@@ -427,8 +543,14 @@ export function RecipesExplorer({
                   : 'bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
               }`}
             >
-              <Star className={`w-3.5 h-3.5 ${favoritesOnly ? 'fill-amber-600 text-amber-600 dark:fill-amber-400 dark:text-amber-400' : ''}`} />
-              Saved Favorites
+              <Star
+                className={`w-3.5 h-3.5 ${
+                  favoritesOnly
+                    ? 'fill-amber-600 text-amber-600 dark:fill-amber-400 dark:text-amber-400'
+                    : ''
+                }`}
+              />
+              {t('savedFavoritesBtn')}
             </button>
 
             {(excludedAllergens.length > 0 ||
@@ -448,7 +570,7 @@ export function RecipesExplorer({
                 className="inline-flex items-center gap-1 px-2.5 py-2 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                Reset
+                {t('resetBtn')}
               </button>
             )}
           </div>
@@ -465,7 +587,7 @@ export function RecipesExplorer({
                 : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            All Categories ({allRecipes.length})
+            {t('allCategoriesTab', { count: allRecipes.length })}
           </button>
           {RECIPE_CATEGORIES.map((cat) => (
             <button
@@ -478,16 +600,19 @@ export function RecipesExplorer({
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
               }`}
             >
-              {cat} ({categoryCounts[cat] || 0})
+              {getCategoryLabel(cat)} ({categoryCounts[cat] || 0})
             </button>
           ))}
         </div>
 
         {/* Allergen Exclusion Controls */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">Exclude allergens:</span>
+          <span className="text-slate-500 dark:text-slate-400 font-medium">
+            {t('excludeAllergensLabel')}
+          </span>
           {ALL_ALLERGENS.map((allergen) => {
             const excluded = excludedAllergens.includes(allergen);
+            const allergenDisplay = getAllergenLabel(allergen);
             return (
               <button
                 key={allergen}
@@ -499,7 +624,7 @@ export function RecipesExplorer({
                     : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
                 }`}
               >
-                {excluded ? `No ${allergen}` : allergen}
+                {excluded ? t('noAllergenPrefix', { allergen: allergenDisplay }) : allergenDisplay}
               </button>
             );
           })}
@@ -508,19 +633,24 @@ export function RecipesExplorer({
 
       {/* Main Split Workspace: Recipe Catalog List + Active Production Sheet */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left List */}
+        {/* Catalog List */}
         <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-              Showing {filteredRecipes.length} of {allRecipes.length} recipes
+              {t('showingCountOfTotal', {
+                filtered: filteredRecipes.length,
+                total: allRecipes.length,
+              })}
             </span>
           </div>
 
           {filteredRecipes.length === 0 ? (
             <div className="p-8 text-center space-y-3">
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No recipes match your filters</p>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                {t('noRecipesMatch')}
+              </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Try clearing allergen exclusions or changing your search query.
+                {t('noRecipesMatchDesc')}
               </p>
               <button
                 type="button"
@@ -534,7 +664,7 @@ export function RecipesExplorer({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                Reset all filters
+                {t('resetAllFilters')}
               </button>
             </div>
           ) : (
@@ -547,18 +677,20 @@ export function RecipesExplorer({
                     key={recipe.id}
                     type="button"
                     onClick={() => handleSelectRecipe(recipe.id)}
-                    className={`w-full text-left px-4 py-3.5 transition-colors flex items-start justify-between gap-3 ${
-                      isSelected ? 'bg-amber-50/70 dark:bg-amber-950/30' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    className={`w-full text-start px-4 py-3.5 transition-colors flex items-start justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-amber-50/70 dark:bg-amber-950/30'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                     }`}
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {!('isCustom' in recipe && recipe.isCustom) ? `${recipe.number}. ` : ''}
-                        {recipe.title}
+                        {getRecipeTitle(recipe, lang)}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-                        {recipe.bookSection ? `${recipe.bookSection} · ` : ''}
-                        {recipe.ovenTemp}
+                        {recipe.bookSection ? `${getSectionLabel(recipe.bookSection)} · ` : ''}
+                        {localizeTemp(recipe.ovenTemp, lang)}
                       </p>
                     </div>
                     {isFav && (
@@ -571,7 +703,7 @@ export function RecipesExplorer({
           )}
         </div>
 
-        {/* Right Detail / Bench Scaler */}
+        {/* Detail / Bench Scaler */}
         <div
           ref={detailRef}
           className="lg:col-span-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 sm:p-6 space-y-6 min-w-0"
@@ -580,16 +712,21 @@ export function RecipesExplorer({
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
             <div>
               <p className="text-xs font-medium text-amber-800 dark:text-amber-400">
-                {activeRecipe.category}
-                {activeRecipe.bookSection ? ` · ${activeRecipe.bookSection}` : ''} ·{' '}
-                {activeRecipe.classification}
+                {getCategoryLabel(activeRecipe.category)}
+                {activeRecipe.bookSection ? ` · ${getSectionLabel(activeRecipe.bookSection)}` : ''} ·{' '}
+                {localizeClassification(activeRecipe.classification, lang)}
               </p>
               <h3 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 mt-1">
-                {activeRecipe.title}
+                {getRecipeTitle(activeRecipe, lang)}
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 font-mono tabular-nums">
-                Base Yield: {activeRecipe.yieldText} · Prep: {activeRecipe.prepTime}
-                {activeRecipe.productionTime ? ` · Production: ${activeRecipe.productionTime}` : ''} · Bake: {activeRecipe.bakeTime} · Oven: {activeRecipe.ovenTemp}
+                {t('baseYieldLabel')}: {localizeYield(activeRecipe.yieldText, lang)} ·{' '}
+                {t('prepLabel')}: {localizeTime(activeRecipe.prepTime, lang)}
+                {activeRecipe.productionTime
+                  ? ` · ${t('productionLabel')}: ${localizeTime(activeRecipe.productionTime, lang)}`
+                  : ''}{' '}
+                · {t('bakeLabel')}: {localizeTime(activeRecipe.bakeTime, lang)} · {t('ovenLabel')}:{' '}
+                {localizeTemp(activeRecipe.ovenTemp, lang)}
               </p>
             </div>
 
@@ -606,10 +743,12 @@ export function RecipesExplorer({
               >
                 <Star
                   className={`w-3.5 h-3.5 ${
-                    activeBookmark?.isFavorite ? 'fill-amber-600 text-amber-600 dark:fill-amber-400 dark:text-amber-400' : ''
+                    activeBookmark?.isFavorite
+                      ? 'fill-amber-600 text-amber-600 dark:fill-amber-400 dark:text-amber-400'
+                      : ''
                   }`}
                 />
-                {activeBookmark?.isFavorite ? 'Saved' : 'Save'}
+                {activeBookmark?.isFavorite ? t('savedBadge') : t('saveBtn')}
               </button>
 
               <button
@@ -618,7 +757,7 @@ export function RecipesExplorer({
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
               >
                 <Printer className="w-3.5 h-3.5" />
-                Print Sheet
+                {t('printSheet')}
               </button>
 
               {isCustomActive && user && (
@@ -626,7 +765,7 @@ export function RecipesExplorer({
                   type="button"
                   onClick={() => deleteOwnerDocument('customRecipes', activeRecipe.id)}
                   className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-700 dark:text-red-400 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
-                  title="Delete custom recipe"
+                  title={t('deleteCustomTitle')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -638,9 +777,11 @@ export function RecipesExplorer({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Batch Multiplier</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {t('batchMultiplier')}
+                </span>
                 <span className="text-xs font-mono tabular-nums text-amber-800 dark:text-amber-400 font-semibold">
-                  {multiplier}× ({scaledPortions} portions)
+                  {multiplier}× ({t('portionsCount', { count: scaledPortions })})
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -666,26 +807,30 @@ export function RecipesExplorer({
                   value={multiplier}
                   onChange={(e) => setMultiplier(Math.max(0.25, Number(e.target.value) || 1))}
                   className="w-16 px-2 py-1 text-xs font-mono tabular-nums border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
-                  aria-label="Custom batch multiplier"
+                  aria-label={t('customMultiplierAria')}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-700 pt-3 md:pt-0 md:pl-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 border-t md:border-t-0 md:border-s border-slate-200 dark:border-slate-700 pt-3 md:pt-0 md:ps-4">
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Est. Batch Cost</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t('estBatchCost')}</p>
                 <p className="text-sm font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-0.5">
                   ${scaledBatchCost.toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Cost / Portion</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t('costPerPortionLabel')}
+                </p>
                 <p className="text-sm font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-0.5">
                   ${costPerPortion.toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Menu ({targetFoodCostPct}% FC)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t('menuFcLabel', { pct: targetFoodCostPct })}
+                </p>
                 <p className="text-sm font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400 mt-0.5">
                   ${suggestedSellPrice.toFixed(2)}
                 </p>
@@ -697,7 +842,7 @@ export function RecipesExplorer({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Ingredients &amp; Mise en Place
+                {t('ingredientsMiseEnPlace')}
               </h4>
               {totalFlourWeight > 0 && (
                 <button
@@ -705,20 +850,20 @@ export function RecipesExplorer({
                   onClick={() => setShowBakersPct((v) => !v)}
                   className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 underline underline-offset-2"
                 >
-                  {showBakersPct ? 'Hide Baker’s %' : 'Show Baker’s %'}
+                  {showBakersPct ? t('hideBakersPct') : t('showBakersPct')}
                 </button>
               )}
             </div>
 
             <div className="border border-slate-200 dark:border-slate-800 rounded-md overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full text-start text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                   <tr>
-                    <th className="px-3 py-2.5 w-10 font-medium">Prep</th>
-                    <th className="px-3 py-2.5 font-medium">Ingredient</th>
-                    <th className="px-3 py-2.5 text-right font-medium">Scaled Qty</th>
+                    <th className="px-3 py-2.5 w-10 font-medium">{t('colPrep')}</th>
+                    <th className="px-3 py-2.5 font-medium">{t('colIngredient')}</th>
+                    <th className="px-3 py-2.5 text-end font-medium">{t('colScaledQty')}</th>
                     {showBakersPct && totalFlourWeight > 0 && (
-                      <th className="px-3 py-2.5 text-right font-medium">Baker&apos;s %</th>
+                      <th className="px-3 py-2.5 text-end font-medium">{t('colBakersPct')}</th>
                     )}
                   </tr>
                 </thead>
@@ -758,12 +903,22 @@ export function RecipesExplorer({
                             {checked && <Check className="w-3 h-3" />}
                           </span>
                         </td>
-                        <td className="px-3 py-2 font-medium">{item.name}</td>
-                        <td className={`px-3 py-2 text-right font-mono tabular-nums ${checked ? 'text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
-                          {scaledVal !== null ? `${scaledVal} ${item.unit}` : item.rawQuantity}
+                        <td className="px-3 py-2 font-medium">
+                          {localizeIngredientName(item.name, lang)}
+                        </td>
+                        <td
+                          className={`px-3 py-2 text-end font-mono tabular-nums ${
+                            checked
+                              ? 'text-slate-400 dark:text-slate-500'
+                              : 'text-slate-900 dark:text-slate-100'
+                          }`}
+                        >
+                          {scaledVal !== null
+                            ? `${scaledVal} ${localizeUnit(item.unit, lang)}`
+                            : localizeYield(item.rawQuantity, lang)}
                         </td>
                         {showBakersPct && totalFlourWeight > 0 && (
-                          <td className="px-3 py-2 text-right font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
+                          <td className="px-3 py-2 text-end font-mono tabular-nums text-xs text-slate-500 dark:text-slate-400">
                             {bakersPct ? `${bakersPct}%` : '—'}
                           </td>
                         )}
@@ -777,9 +932,11 @@ export function RecipesExplorer({
 
           {/* Method Steps */}
           <div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Production Method</h4>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">
+              {t('productionMethod')}
+            </h4>
             <ol className="space-y-2.5">
-              {activeRecipe.steps.map((step, idx) => {
+              {displaySteps.map((step, idx) => {
                 const key = `${activeRecipe.id}-step-${idx}`;
                 const done = Boolean(checkedSteps[key]);
                 return (
@@ -793,7 +950,7 @@ export function RecipesExplorer({
                     }`}
                   >
                     <span className="font-mono text-xs font-semibold text-amber-800 dark:text-amber-400 mt-0.5 shrink-0">
-                      0{idx + 1}.
+                      {idx < 9 ? `0${idx + 1}` : idx + 1}.
                     </span>
                     <span className="text-sm leading-relaxed">{step}</span>
                   </li>
@@ -802,41 +959,62 @@ export function RecipesExplorer({
             </ol>
           </div>
 
-          {/* Quality Standard, Fault Correction, Storage & Unboxed Allergen Metadata */}
+          {/* Quality Standard, Fault Correction, Storage & Declared Allergens */}
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4 space-y-2 text-xs text-slate-700 dark:text-slate-300">
-            {activeRecipe.equipment && (
+            {displayEquipment && (
               <p>
-                <strong className="text-slate-900 dark:text-slate-100">Equipment:</strong> {activeRecipe.equipment}
+                <strong className="text-slate-900 dark:text-slate-100">
+                  {t('metaEquipment')}
+                </strong>{' '}
+                {displayEquipment}
               </p>
             )}
             <p>
-              <strong className="text-slate-900 dark:text-slate-100">Quality Standard:</strong> {activeRecipe.qualityStandard}
+              <strong className="text-slate-900 dark:text-slate-100">
+                {t('metaQualityStandard')}
+              </strong>{' '}
+              {displayQualityStandard}
             </p>
-            {activeRecipe.faultCorrection && (
+            {displayFaultCorrection && (
               <p>
-                <strong className="text-slate-900 dark:text-slate-100">Fault Correction:</strong> {activeRecipe.faultCorrection}
+                <strong className="text-slate-900 dark:text-slate-100">
+                  {t('metaFaultCorrection')}
+                </strong>{' '}
+                {displayFaultCorrection}
               </p>
             )}
-            {activeRecipe.storage && (
+            {displayStorage && (
               <p>
-                <strong className="text-slate-900 dark:text-slate-100">Storage &amp; Shelf Life:</strong> {activeRecipe.storage}
+                <strong className="text-slate-900 dark:text-slate-100">
+                  {t('metaStorageShelfLife')}
+                </strong>{' '}
+                {displayStorage}
               </p>
             )}
-            {activeRecipe.chefNote && (
+            {displayChefNote && (
               <p>
-                <strong className="text-slate-900 dark:text-slate-100">Chef&apos;s Note:</strong> {activeRecipe.chefNote}
+                <strong className="text-slate-900 dark:text-slate-100">
+                  {t('metaChefNote')}
+                </strong>{' '}
+                {displayChefNote}
               </p>
             )}
             <p>
-              <strong className="text-slate-900 dark:text-slate-100">Declared Allergens:</strong>{' '}
-              {activeRecipe.allergens.length > 0 ? activeRecipe.allergens.join(' · ') : 'None declared'}
+              <strong className="text-slate-900 dark:text-slate-100">
+                {t('metaDeclaredAllergens')}
+              </strong>{' '}
+              {activeRecipe.allergens.length > 0
+                ? activeRecipe.allergens.map((a) => getAllergenLabel(a)).join(joinDot)
+                : t('noneDeclared')}
             </p>
           </div>
 
           {/* Cloud Kitchen Bench Notes */}
           <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Chef&apos;s Kitchen Adjustment Notes</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {t('benchNotesTitle')}
+              </h4>
               {user && editingNoteId !== activeRecipe.id && (
                 <button
                   type="button"
@@ -846,7 +1024,7 @@ export function RecipesExplorer({
                   }}
                   className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300"
                 >
-                  {activeBookmark?.notes ? 'Edit Note' : 'Add Note'}
+                  {activeBookmark?.notes ? t('editNote') : t('addNote')}
                 </button>
               )}
             </div>
@@ -858,7 +1036,7 @@ export function RecipesExplorer({
                   maxLength={500}
                   value={benchNoteDraft}
                   onChange={(e) => setBenchNoteDraft(e.target.value)}
-                  placeholder="Record oven calibration adjustments, flour absorption % or actual yield..."
+                  placeholder={t('benchNotesPlaceholder')}
                   className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
                 <div className="flex items-center gap-2">
@@ -868,14 +1046,14 @@ export function RecipesExplorer({
                     onClick={() => handleSaveNote(activeRecipe.id)}
                     className="px-3 py-1.5 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white"
                   >
-                    {savingBookmark ? 'Saving...' : 'Save Note to Cloud'}
+                    {savingBookmark ? t('saving') : t('saveNoteCloud')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditingNoteId(null)}
                     className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -884,8 +1062,8 @@ export function RecipesExplorer({
                 {activeBookmark?.notes
                   ? activeBookmark.notes
                   : user
-                    ? 'No kitchen adjustments logged for this recipe yet.'
-                    : 'Sign in with Google to persist oven notes and recipe favorites across sessions.'}
+                    ? t('noNotesLogged')
+                    : t('signInForNotes')}
               </p>
             )}
           </div>
@@ -895,18 +1073,22 @@ export function RecipesExplorer({
       {/* Create Custom Recipe Modal (Appendix C) */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 dark:bg-slate-950/70 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5">
+          <div
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-5"
+            dir={isRtl ? 'rtl' : 'ltr'}
+          >
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <ChefHat className="w-5 h-5 text-amber-700 dark:text-amber-400" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  Appendix C — New Standardized Recipe
+                  {t('appendixCTitle')}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
                 className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                aria-label={t('cancel')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -915,18 +1097,22 @@ export function RecipesExplorer({
             <form onSubmit={handleCreateCustomRecipe} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Recipe Title</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('recipeTitleLabel')}
+                  </span>
                   <input
                     required
                     maxLength={120}
                     value={newTitle}
                     onChange={(e) => setNewTitle(e.target.value)}
-                    placeholder="e.g., Cardamom Brioche Buns"
+                    placeholder={t('recipeTitlePlaceholder')}
                     className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm"
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Category</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('categoryLabel')}
+                  </span>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value as RecipeCategory)}
@@ -934,7 +1120,7 @@ export function RecipesExplorer({
                   >
                     {RECIPE_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {getCategoryLabel(c)}
                       </option>
                     ))}
                   </select>
@@ -943,7 +1129,9 @@ export function RecipesExplorer({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Target Yield</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('targetYieldLabel')}
+                  </span>
                   <input
                     required
                     value={newYield}
@@ -952,7 +1140,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Portions</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('portionsLabel')}
+                  </span>
                   <input
                     type="number"
                     min="1"
@@ -964,7 +1154,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Oven Temp</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('ovenTempFieldLabel')}
+                  </span>
                   <input
                     value={newOvenTemp}
                     onChange={(e) => setNewOvenTemp(e.target.value)}
@@ -972,7 +1164,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Batch Cost (USD $)</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('batchCostUsdLabel')}
+                  </span>
                   <input
                     type="number"
                     step="0.1"
@@ -986,7 +1180,9 @@ export function RecipesExplorer({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Classification</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('classificationLabel')}
+                  </span>
                   <input
                     required
                     value={newClassification}
@@ -995,7 +1191,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Prep Time</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('prepTimeLabel')}
+                  </span>
                   <input
                     required
                     value={newPrepTime}
@@ -1004,7 +1202,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Bake Time</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('bakeTimeLabel')}
+                  </span>
                   <input
                     required
                     value={newBakeTime}
@@ -1016,7 +1216,7 @@ export function RecipesExplorer({
 
               <label className="block">
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  Ingredients (one per line: Name | Quantity | Unit)
+                  {t('ingredientsFormatLabel')}
                 </span>
                 <textarea
                   rows={4}
@@ -1029,7 +1229,7 @@ export function RecipesExplorer({
 
               <label className="block">
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  Method Steps (one step per line)
+                  {t('methodStepsFormatLabel')}
                 </span>
                 <textarea
                   rows={4}
@@ -1042,7 +1242,9 @@ export function RecipesExplorer({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Quality Standard</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('qualityStandardFieldLabel')}
+                  </span>
                   <input
                     value={newQualityStandard}
                     onChange={(e) => setNewQualityStandard(e.target.value)}
@@ -1050,7 +1252,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Allergens (comma-separated)</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('allergensFieldLabel')}
+                  </span>
                   <input
                     value={newAllergensText}
                     onChange={(e) => setNewAllergensText(e.target.value)}
@@ -1061,7 +1265,9 @@ export function RecipesExplorer({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Critical Control Points</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('criticalControlPointsLabel')}
+                  </span>
                   <input
                     value={newCriticalPoints}
                     onChange={(e) => setNewCriticalPoints(e.target.value)}
@@ -1069,7 +1275,9 @@ export function RecipesExplorer({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Shelf Life</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('shelfLifeLabel')}
+                  </span>
                   <input
                     value={newShelfLife}
                     onChange={(e) => setNewShelfLife(e.target.value)}
@@ -1084,14 +1292,14 @@ export function RecipesExplorer({
                   onClick={() => setShowCreateModal(false)}
                   className="px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={creatingRecipe}
                   className="px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white"
                 >
-                  {creatingRecipe ? 'Saving Formula...' : 'Save Standardized Recipe'}
+                  {creatingRecipe ? t('savingFormula') : t('saveStandardizedRecipe')}
                 </button>
               </div>
             </form>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -38,6 +38,16 @@ import {
   upsertRecipeBookmark,
 } from '../lib/kitchenRepository';
 import { useAuth } from './AuthContext';
+import { useI18n } from '../i18n/I18nContext';
+import { RECIPE_CATEGORY_AM, RECIPE_CATEGORY_AR } from '../i18n/translations';
+import {
+  RECIPE_TITLES_AR,
+  getRecipeSearchBlob,
+  getRecipeTitle,
+  localizeTemp,
+  localizeYield,
+} from '../i18n/recipesAr';
+import { RECIPE_TITLES_AM } from '../i18n/recipesAm';
 
 export type WorkspaceSection =
   | 'overview'
@@ -88,6 +98,16 @@ function normalizeSearch(value: string): string {
     .toLowerCase();
 }
 
+function findLinkedRecipe(title: string): StandardizedRecipe | undefined {
+  const direct = findRecipeByIndexTitle(title);
+  if (direct) return direct;
+  const trimmed = title.trim();
+  if (!trimmed) return undefined;
+  return STANDARDIZED_RECIPES.find(
+    (r) => RECIPE_TITLES_AR[r.id] === trimmed || RECIPE_TITLES_AM[r.id] === trimmed
+  );
+}
+
 export function OverviewDashboard({
   onNavigate,
   onOpenRecipe,
@@ -99,6 +119,7 @@ export function OverviewDashboard({
   bookmarks,
 }: OverviewDashboardProps) {
   const { user, profile, signInWithGoogle } = useAuth();
+  const { lang, isRtl, t } = useI18n();
   const [heroImgFailed, setHeroImgFailed] = useState(false);
   const [benchImgFailed, setBenchImgFailed] = useState(false);
 
@@ -111,19 +132,21 @@ export function OverviewDashboard({
 
   // Inline Quick Log Forms
   const [quickLogMode, setQuickLogMode] = useState<QuickLogMode>('none');
-  const [batchProduct, setBatchProduct] = useState('Classic White Sandwich Bread');
-  const [batchSize, setBatchSize] = useState('12 loaves');
+  const [batchProduct, setBatchProduct] = useState(() => t('defaultBatchProduct'));
+  const [batchSize, setBatchSize] = useState(() => t('defaultBatchSize'));
   const [batchTime, setBatchTime] = useState(nowTimeStr());
-  const [batchOperator, setBatchOperator] = useState(profile?.displayName || 'Head Baker');
+  const [batchOperator, setBatchOperator] = useState(
+    () => profile?.displayName || t('defaultChefName')
+  );
   const [savingQuickLog, setSavingQuickLog] = useState(false);
 
-  const [probeEquipment, setProbeEquipment] = useState('Walk-in Dairy Chiller');
+  const [probeEquipment, setProbeEquipment] = useState(() => t('defaultProbeEquipment'));
   const [probeCategory, setProbeCategory] = useState<TempCategory>('chilled');
   const [probeTempC, setProbeTempC] = useState(3.2);
   const [probeAction, setProbeAction] = useState('');
   const [probeInitials, setProbeInitials] = useState('HB');
 
-  const [sensoryProduct, setSensoryProduct] = useState('Butter Croissants');
+  const [sensoryProduct, setSensoryProduct] = useState(() => t('defaultSensoryProduct'));
   const [sensoryScores, setSensoryScores] = useState({
     appearance: 5,
     colour: 5,
@@ -132,6 +155,33 @@ export function OverviewDashboard({
     aroma: 5,
   });
   const [sensoryNotes, setSensoryNotes] = useState('');
+
+  const prevDefaultsRef = useRef({
+    batchProduct: t('defaultBatchProduct'),
+    batchSize: t('defaultBatchSize'),
+    batchOperator: t('defaultChefName'),
+    probeEquipment: t('defaultProbeEquipment'),
+    sensoryProduct: t('defaultSensoryProduct'),
+  });
+
+  useEffect(() => {
+    const prev = prevDefaultsRef.current;
+    const nextDefaults = {
+      batchProduct: t('defaultBatchProduct'),
+      batchSize: t('defaultBatchSize'),
+      batchOperator: t('defaultChefName'),
+      probeEquipment: t('defaultProbeEquipment'),
+      sensoryProduct: t('defaultSensoryProduct'),
+    };
+    setBatchProduct((v) => (v === prev.batchProduct ? nextDefaults.batchProduct : v));
+    setBatchSize((v) => (v === prev.batchSize ? nextDefaults.batchSize : v));
+    if (!profile?.displayName) {
+      setBatchOperator((v) => (v === prev.batchOperator ? nextDefaults.batchOperator : v));
+    }
+    setProbeEquipment((v) => (v === prev.probeEquipment ? nextDefaults.probeEquipment : v));
+    setSensoryProduct((v) => (v === prev.sensoryProduct ? nextDefaults.sensoryProduct : v));
+    prevDefaultsRef.current = nextDefaults;
+  }, [lang, profile?.displayName, t]);
 
   // Interactive Category Spotlights
   const [expandedCategory, setExpandedCategory] = useState<RecipeCategory | null>(null);
@@ -164,10 +214,7 @@ export function OverviewDashboard({
     for (const r of STANDARDIZED_RECIPES) {
       const hit =
         (isNum && String(r.number) === numQuery) ||
-        normalizeSearch(r.title).includes(q) ||
-        (r.searchAliases?.some((a) => normalizeSearch(a).includes(q)) ?? false) ||
-        r.ingredients.some((i) => normalizeSearch(i.name).includes(q)) ||
-        (r.bookSection ? normalizeSearch(r.bookSection).includes(q) : false);
+        normalizeSearch(getRecipeSearchBlob(r)).includes(q);
       if (hit) {
         matches.push(r);
         if (matches.length >= 6) break;
@@ -201,8 +248,8 @@ export function OverviewDashboard({
   const completedCount = scopedProduction.filter((p) => p.status === 'completed').length;
   const activeBatches = scheduledCount + inProgressCount;
 
-  const nominalTemps = scopedTemps.filter((t) => t.status === 'nominal').length;
-  const alertTemps = scopedTemps.filter((t) => t.status !== 'nominal').length;
+  const nominalTemps = scopedTemps.filter((tItem) => tItem.status === 'nominal').length;
+  const alertTemps = scopedTemps.filter((tItem) => tItem.status !== 'nominal').length;
   const tempCompliancePct =
     scopedTemps.length > 0 ? Math.round((nominalTemps / scopedTemps.length) * 100) : 100;
 
@@ -243,6 +290,40 @@ export function OverviewDashboard({
   const portionCost = costPortions > 0 ? costBatch / costPortions : 0;
   const menuPrice = costTargetPct > 0 ? portionCost / (costTargetPct / 100) : 0;
 
+  const getCategoryLabel = (cat: string) =>
+    lang === 'ar'
+      ? RECIPE_CATEGORY_AR[cat] || cat
+      : lang === 'am'
+        ? RECIPE_CATEGORY_AM[cat] || cat
+        : cat;
+
+  const getTempZoneLabel = (zone: TempCategory) => {
+    switch (zone) {
+      case 'chilled':
+        return t('zoneShortChilled');
+      case 'frozen':
+        return t('zoneShortFrozen');
+      case 'chocolate':
+        return t('zoneShortChocolate');
+      case 'ambient':
+        return t('zoneShortAmbient');
+      case 'proofer':
+        return t('zoneShortProofer');
+      case 'oven':
+        return t('zoneShortOven');
+    }
+  };
+
+  const getTempStatusLabel = (status: 'nominal' | 'warning' | 'critical') => {
+    if (status === 'nominal') return t('statusNominal');
+    if (status === 'warning') return t('statusWarning');
+    return t('statusCritical');
+  };
+
+  const degUnit = lang === 'ar' ? '°م' : '°C';
+  const degFUnit = lang === 'ar' ? '°ف' : '°F';
+  const arrowChar = isRtl ? '←' : '→';
+
   const handleQuickBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
@@ -258,9 +339,9 @@ export function OverviewDashboard({
         startTime: batchTime || nowTimeStr(),
         endTime: '',
         actualYield: '',
-        operator: batchOperator || profile?.displayName || 'Baker',
+        operator: batchOperator || profile?.displayName || t('roleBaker'),
         status: 'scheduled',
-        notes: 'Logged from Dashboard',
+        notes: t('loggedFromDashboard'),
       });
       setQuickLogMode('none');
     } finally {
@@ -303,7 +384,7 @@ export function OverviewDashboard({
       await createSensoryEvaluation(user.uid, {
         recipeTitle: sensoryProduct,
         batchDate: todayIso(),
-        evaluator: profile?.displayName || 'Head Chef',
+        evaluator: profile?.displayName || t('defaultOpsEvaluator'),
         appearance: sensoryScores.appearance,
         colour: sensoryScores.colour,
         texture: sensoryScores.texture,
@@ -364,18 +445,19 @@ export function OverviewDashboard({
         <div className="lg:col-span-7 p-5 sm:p-8 lg:p-10 flex flex-col justify-between min-w-0">
           <div>
             <p className="text-xs font-medium text-amber-800 dark:text-amber-400">
-              Comprehensive Professional Kitchen Edition · Metric · °C · USD ·{' '}
-              {profile?.kitchenName || 'Culinary Operations'}
+              {t('heroEyebrow', {
+                kitchen: profile?.kitchenName || t('heroEyebrowDefaultKitchen'),
+              })}
             </p>
             <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 mt-2 leading-tight [text-wrap:balance]">
-              Professional Bakery, Pastry, Bread &amp; Pizza Technology
+              {t('heroTitle')}
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-2.5 leading-relaxed max-w-xl">
-              Interactive 15-chapter manual and master index with{' '}
+              {t('heroSubtitlePre')}{' '}
               <span className="font-mono tabular-nums font-medium text-slate-900 dark:text-slate-100">
                 {allFormulasCount}
               </span>{' '}
-              scalable formulas, live batch costing, and cloud-synced HACCP compliance.
+              {t('heroSubtitlePost')}
             </p>
 
             {/* Instant Formula Search Bar */}
@@ -391,30 +473,30 @@ export function OverviewDashboard({
                 }}
               >
                 <div className="relative">
-                  <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute start-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={quickQuery}
                     onChange={(e) => setQuickQuery(e.target.value)}
-                    placeholder={`Search ${allFormulasCount} formulas by #number, name, or ingredient (e.g. #25, brioche, pistachio)...`}
-                    className="w-full pl-10 pr-24 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-950 transition-colors"
-                    aria-label="Quick search standardized recipes"
+                    placeholder={t('quickSearchPlaceholder', { count: allFormulasCount })}
+                    className="w-full ps-10 pe-24 py-2.5 text-sm bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:bg-white dark:focus:bg-slate-950 transition-colors"
+                    aria-label={t('quickSearchAria')}
                   />
                   {quickQuery && (
                     <button
                       type="button"
                       onClick={() => setQuickQuery('')}
-                      className="absolute right-16 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                      aria-label="Clear quick search"
+                      className="absolute end-16 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                      aria-label={t('clearQuickSearch')}
                     >
                       <X className="w-4 h-4" />
                     </button>
                   )}
                   <button
                     type="submit"
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+                    className="absolute end-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
                   >
-                    Open
+                    {t('openButton')}
                   </button>
                 </div>
               </form>
@@ -423,13 +505,13 @@ export function OverviewDashboard({
                 <div className="mt-2 border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
                   {searchResults.length === 0 ? (
                     <div className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between gap-2">
-                      <span>No matching formula in catalog for &ldquo;{quickQuery}&rdquo;.</span>
+                      <span>{t('noMatchingFormula', { query: quickQuery })}</span>
                       <button
                         type="button"
                         onClick={() => onOpenRecipe('All')}
                         className="font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 whitespace-nowrap"
                       >
-                        Browse all {allFormulasCount} →
+                        {t('browseAllCount', { count: allFormulasCount })} {arrowChar}
                       </button>
                     </div>
                   ) : (
@@ -443,16 +525,18 @@ export function OverviewDashboard({
                           <button
                             type="button"
                             onClick={() => onOpenRecipe(recipe.category, recipe.id)}
-                            className="flex-1 text-left min-w-0"
+                            className="flex-1 text-start min-w-0"
                           >
                             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-                              <span className="font-mono text-xs text-amber-800 dark:text-amber-400 mr-1.5">
+                              <span className="font-mono text-xs text-amber-800 dark:text-amber-400 me-1.5">
                                 #{recipe.number}
                               </span>
-                              {recipe.title}
+                              {getRecipeTitle(recipe, lang)}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-mono tabular-nums">
-                              {recipe.category} · {recipe.ovenTemp} · {recipe.yieldText}
+                              {getCategoryLabel(recipe.category)} ·{' '}
+                              {localizeTemp(recipe.ovenTemp, lang)} ·{' '}
+                              {localizeYield(recipe.yieldText, lang)}
                             </p>
                           </button>
                           <div className="flex items-center gap-1.5 shrink-0">
@@ -460,7 +544,7 @@ export function OverviewDashboard({
                               type="button"
                               onClick={() => void handleToggleFavorite(recipe.id)}
                               className="p-2 text-slate-400 hover:text-amber-500 rounded"
-                              aria-label={isFav ? 'Remove from favorites' : 'Save favorite'}
+                              aria-label={isFav ? t('removeFromFavorites') : t('saveFavorite')}
                             >
                               <Star
                                 className={`w-4 h-4 ${
@@ -473,7 +557,7 @@ export function OverviewDashboard({
                               onClick={() => onOpenRecipe(recipe.category, recipe.id)}
                               className="px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 whitespace-nowrap"
                             >
-                              Bench →
+                              {t('benchLink')} {arrowChar}
                             </button>
                           </div>
                         </div>
@@ -491,8 +575,8 @@ export function OverviewDashboard({
               onClick={() => onOpenRecipe('All')}
               className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
             >
-              Open Recipe Bench
-              <ArrowRight className="w-4 h-4" />
+              {t('openRecipeBench')}
+              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
             </button>
             <button
               type="button"
@@ -500,7 +584,7 @@ export function OverviewDashboard({
               className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
             >
               <BookOpen className="w-4 h-4" />
-              Read Training Manual
+              {t('readTrainingManual')}
             </button>
             {!user && (
               <button
@@ -508,7 +592,7 @@ export function OverviewDashboard({
                 onClick={signInWithGoogle}
                 className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded-md hover:bg-amber-100 dark:hover:bg-amber-900/60 transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
               >
-                Sign In to Sync Cloud Kitchen
+                {t('signInSyncCloud')}
               </button>
             )}
           </div>
@@ -518,7 +602,7 @@ export function OverviewDashboard({
           {!heroImgFailed ? (
             <img
               src="/src/assets/images/artisan_bakery_hero_1795100648606.jpg"
-              alt="Artisan sourdough loaves and golden laminated croissants cooling on a bakery rack"
+              alt={t('heroImgAlt')}
               referrerPolicy="no-referrer"
               onError={() => setHeroImgFailed(true)}
               className="w-full h-full object-cover"
@@ -526,7 +610,7 @@ export function OverviewDashboard({
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center p-6 text-slate-500 dark:text-slate-400">
               <ChefHat className="w-10 h-10 mb-2 text-amber-800 dark:text-amber-400" />
-              <span className="text-xs font-medium">Artisan Bakery Production Rack</span>
+              <span className="text-xs font-medium">{t('heroImgFallback')}</span>
             </div>
           )}
         </div>
@@ -536,14 +620,14 @@ export function OverviewDashboard({
       <section className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Live Operations &amp; Formula Telemetry
+            {t('telemetryHeading')}
           </h2>
           <div className="inline-flex items-center gap-1 p-1 bg-slate-200/70 dark:bg-slate-800 rounded-lg self-start sm:self-auto">
             {(
               [
-                { id: 'all', label: 'All Records' },
-                { id: '7d', label: 'Last 7 Days' },
-                { id: 'today', label: 'Today Shift' },
+                { id: 'all', label: t('tfAll') },
+                { id: '7d', label: t('tf7d') },
+                { id: 'today', label: t('tfToday') },
               ] as { id: TimeframeFilter; label: string }[]
             ).map((tf) => (
               <button
@@ -566,47 +650,60 @@ export function OverviewDashboard({
           <button
             type="button"
             onClick={() => onOpenRecipe('All')}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-left transition-colors group"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-start transition-colors group"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Standardized Formulas</p>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors" />
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('kpiFormulas')}
+              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors rtl:rotate-180" />
             </div>
             <p className="text-2xl font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1.5">
               {allFormulasCount}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
-              {favoriteRecipes.length} saved · {customRecipes.length} custom
+              {t('kpiFormulasSub', {
+                saved: favoriteRecipes.length,
+                custom: customRecipes.length,
+              })}
             </p>
           </button>
 
           <button
             type="button"
             onClick={() => onOpenOperations('production')}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-left transition-colors group"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-start transition-colors group"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Active / Scheduled Batches</p>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors" />
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('kpiBatches')}
+              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors rtl:rotate-180" />
             </div>
             <p className="text-2xl font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1.5">
               {user ? activeBatches : '—'}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
               {user
-                ? `${scheduledCount} queued · ${inProgressCount} active · ${completedCount} done`
-                : 'Click to open Batch Schedule'}
+                ? t('kpiBatchesSub', {
+                    queued: scheduledCount,
+                    active: inProgressCount,
+                    done: completedCount,
+                  })
+                : t('kpiBatchesSignedOut')}
             </p>
           </button>
 
           <button
             type="button"
             onClick={() => onOpenOperations('temperature')}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-left transition-colors group"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-start transition-colors group"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">HACCP Temp Compliance</p>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors" />
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('kpiTemp')}
+              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors rtl:rotate-180" />
             </div>
             <p
               className={`text-2xl font-semibold font-mono tabular-nums mt-1.5 ${
@@ -622,28 +719,30 @@ export function OverviewDashboard({
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
               {user
                 ? alertTemps > 0
-                  ? `${alertTemps} out-of-range · ${scopedTemps.length} checks`
-                  : `${scopedTemps.length} nominal probe checks`
-                : '0–5 °C chilled · ≤−18 °C frozen'}
+                  ? t('kpiTempAlerts', { alerts: alertTemps, total: scopedTemps.length })
+                  : t('kpiTempNominal', { total: scopedTemps.length })
+                : t('kpiTempSignedOut')}
             </p>
           </button>
 
           <button
             type="button"
             onClick={() => onOpenOperations('sensory')}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-left transition-colors group"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-5 text-start transition-colors group"
           >
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Mean Sensory QC Score</p>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors" />
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {t('kpiSensory')}
+              </p>
+              <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors rtl:rotate-180" />
             </div>
             <p className="text-2xl font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400 mt-1.5">
               {user ? (avgSensory === '—' ? '—' : `${avgSensory} / 5`) : '—'}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono tabular-nums">
               {user
-                ? `${scopedSensory.length} evaluations logged`
-                : '5-point culinary rubric'}
+                ? t('kpiSensorySub', { count: scopedSensory.length })
+                : t('kpiSensorySignedOut')}
             </p>
           </button>
         </div>
@@ -658,7 +757,7 @@ export function OverviewDashboard({
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-4 h-4 text-amber-800 dark:text-amber-400 shrink-0" />
                 <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Kitchen Shift Operations &amp; Quick Log
+                  {t('shiftOpsHeading')}
                 </h2>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -674,7 +773,7 @@ export function OverviewDashboard({
                   }`}
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  Batch
+                  {t('quickBtnBatch')}
                 </button>
                 <button
                   type="button"
@@ -688,7 +787,7 @@ export function OverviewDashboard({
                   }`}
                 >
                   <Thermometer className="w-3.5 h-3.5" />
-                  Temp
+                  {t('quickBtnTemp')}
                 </button>
                 <button
                   type="button"
@@ -702,7 +801,7 @@ export function OverviewDashboard({
                   }`}
                 >
                   <Star className="w-3.5 h-3.5" />
-                  Sensory
+                  {t('quickBtnSensory')}
                 </button>
               </div>
             </div>
@@ -715,20 +814,22 @@ export function OverviewDashboard({
               >
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    Quick Schedule Batch (Appendix A)
+                    {t('quickBatchTitle')}
                   </p>
                   <button
                     type="button"
                     onClick={() => setQuickLogMode('none')}
                     className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                    aria-label="Close quick batch form"
+                    aria-label={t('closeQuickBatch')}
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="block sm:col-span-2">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Product / Formula</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t('productFormulaLabel')}
+                    </span>
                     <input
                       required
                       maxLength={120}
@@ -739,7 +840,9 @@ export function OverviewDashboard({
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Batch Size</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t('batchSizeLabel')}
+                    </span>
                     <input
                       required
                       maxLength={40}
@@ -750,7 +853,9 @@ export function OverviewDashboard({
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Start</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t('startLabel')}
+                      </span>
                       <input
                         required
                         maxLength={10}
@@ -760,7 +865,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Operator</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t('operatorLabel')}
+                      </span>
                       <input
                         required
                         maxLength={80}
@@ -778,10 +885,10 @@ export function OverviewDashboard({
                     className="px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
                   >
                     {savingQuickLog
-                      ? 'Saving...'
+                      ? t('saving')
                       : user
-                        ? 'Schedule Batch'
-                        : 'Sign In & Schedule'}
+                        ? t('scheduleBatchBtn')
+                        : t('signInAndSchedule')}
                   </button>
                 </div>
               </form>
@@ -794,7 +901,7 @@ export function OverviewDashboard({
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    Quick HACCP Probe Check (Appendix B)
+                    {t('quickTempTitle')}
                   </p>
                   <span
                     className={`text-xs font-mono font-semibold ${
@@ -805,12 +912,14 @@ export function OverviewDashboard({
                           : 'text-red-700 dark:text-red-400'
                     }`}
                   >
-                    Live Status: {liveProbeStatus.toUpperCase()}
+                    {t('liveStatusLabel')}: {getTempStatusLabel(liveProbeStatus).toUpperCase()}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <label className="block">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Equipment</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t('equipmentLabel')}
+                    </span>
                     <input
                       required
                       maxLength={80}
@@ -820,23 +929,27 @@ export function OverviewDashboard({
                     />
                   </label>
                   <label className="block">
-                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Zone Standard</span>
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                      {t('zoneStandardLabel')}
+                    </span>
                     <select
                       value={probeCategory}
                       onChange={(e) => setProbeCategory(e.target.value as TempCategory)}
                       className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-sm"
                     >
-                      <option value="chilled">Chilled (0–5 °C)</option>
-                      <option value="frozen">Frozen (≤ −18 °C)</option>
-                      <option value="chocolate">Chocolate (15–18 °C)</option>
-                      <option value="ambient">Dry Goods (15–21 °C)</option>
-                      <option value="proofer">Proofer (24–30 °C)</option>
-                      <option value="oven">Oven (140–500 °C)</option>
+                      <option value="chilled">{t('zoneChilled')}</option>
+                      <option value="frozen">{t('zoneFrozen')}</option>
+                      <option value="chocolate">{t('zoneChocolate')}</option>
+                      <option value="ambient">{t('zoneAmbient')}</option>
+                      <option value="proofer">{t('zoneProofer')}</option>
+                      <option value="oven">{t('zoneOven')}</option>
                     </select>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Temp (°C)</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t('tempCLabel')}
+                      </span>
                       <input
                         type="number"
                         step="0.1"
@@ -847,7 +960,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Initials</span>
+                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                        {t('initialsLabel')}
+                      </span>
                       <input
                         required
                         maxLength={10}
@@ -861,13 +976,13 @@ export function OverviewDashboard({
                 {liveProbeStatus !== 'nominal' && (
                   <label className="block">
                     <span className="text-xs font-medium text-amber-800 dark:text-amber-400">
-                      Corrective Action Recommended
+                      {t('correctiveRecommended')}
                     </span>
                     <input
                       maxLength={300}
                       value={probeAction}
                       onChange={(e) => setProbeAction(e.target.value)}
-                      placeholder="Adjust thermostat, relocate chilled stock, re-check in 30 min..."
+                      placeholder={t('correctivePlaceholder')}
                       className="mt-1 w-full rounded-md border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
                     />
                   </label>
@@ -878,7 +993,7 @@ export function OverviewDashboard({
                     onClick={() => setQuickLogMode('none')}
                     className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button
                     type="submit"
@@ -886,10 +1001,10 @@ export function OverviewDashboard({
                     className="px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
                   >
                     {savingQuickLog
-                      ? 'Saving...'
+                      ? t('saving')
                       : user
-                        ? 'Log Temperature'
-                        : 'Sign In & Log'}
+                        ? t('logTempBtn')
+                        : t('signInAndLog')}
                   </button>
                 </div>
               </form>
@@ -902,14 +1017,16 @@ export function OverviewDashboard({
               >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                    Quick Sensory QC Scorecard (Appendix D)
+                    {t('quickSensoryTitle')}
                   </p>
                   <span className="text-xs font-mono font-semibold text-amber-800 dark:text-amber-400 tabular-nums">
-                    Mean: {liveSensoryOverall} / 5.0
+                    {t('meanLabel')}: {liveSensoryOverall} / 5.0
                   </span>
                 </div>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Baked Product</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {t('bakedProductLabel')}
+                  </span>
                   <input
                     required
                     maxLength={120}
@@ -922,11 +1039,11 @@ export function OverviewDashboard({
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   {(
                     [
-                      ['appearance', 'Appearance'],
-                      ['colour', 'Colour'],
-                      ['texture', 'Texture'],
-                      ['flavour', 'Flavour'],
-                      ['aroma', 'Aroma'],
+                      ['appearance', t('sensoryAppearance')],
+                      ['colour', t('sensoryColour')],
+                      ['texture', t('sensoryTexture')],
+                      ['flavour', t('sensoryFlavour')],
+                      ['aroma', t('sensoryAroma')],
                     ] as const
                   ).map(([key, label]) => (
                     <label key={key} className="block">
@@ -948,51 +1065,44 @@ export function OverviewDashboard({
                     </label>
                   ))}
                 </div>
-                <input
-                  maxLength={600}
-                  value={sensoryNotes}
-                  onChange={(e) => setSensoryNotes(e.target.value)}
-                  placeholder="Crumb, crust, lamination, or balance notes..."
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setQuickLogMode('none')}
-                    className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  <input
+                    maxLength={400}
+                    value={sensoryNotes}
+                    onChange={(e) => setSensoryNotes(e.target.value)}
+                    placeholder={t('sensoryNotesPlaceholder')}
+                    className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
+                  />
                   <button
                     type="submit"
                     disabled={savingQuickLog}
-                    className="px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
+                    className="px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap"
                   >
                     {savingQuickLog
-                      ? 'Saving...'
+                      ? t('saving')
                       : user
-                        ? 'Save QC Score'
-                        : 'Sign In & Save'}
+                        ? t('saveQcScoreBtn')
+                        : t('signInAndSave')}
                   </button>
                 </div>
               </form>
             )}
 
             <datalist id="dashboard-recipe-options">
-              {STANDARDIZED_RECIPES.slice(0, 120).map((r) => (
-                <option key={r.id} value={r.title} />
+              {STANDARDIZED_RECIPES.map((r) => (
+                <option key={r.id} value={getRecipeTitle(r, lang)} />
               ))}
             </datalist>
 
-            {/* Activity Segmented Filter + Manage Link */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* Activity Filter Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-1 overflow-x-auto">
                 {(
                   [
-                    { id: 'all', label: 'All' },
-                    { id: 'batches', label: `Batches (${scopedProduction.length})` },
-                    { id: 'temps', label: `Temps (${scopedTemps.length})` },
-                    { id: 'sensory', label: `Sensory (${scopedSensory.length})` },
+                    { id: 'all', label: t('actAll') },
+                    { id: 'batches', label: t('actBatches', { count: scopedProduction.length }) },
+                    { id: 'temps', label: t('actTemps', { count: scopedTemps.length }) },
+                    { id: 'sensory', label: t('actSensory', { count: scopedSensory.length }) },
                   ] as { id: ActivityFilter; label: string }[]
                 ).map((tab) => (
                   <button
@@ -1014,7 +1124,7 @@ export function OverviewDashboard({
                 onClick={() => onNavigate('operations')}
                 className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 whitespace-nowrap"
               >
-                Manage All Logs →
+                {t('manageAllLogs')} {arrowChar}
               </button>
             </div>
 
@@ -1022,17 +1132,17 @@ export function OverviewDashboard({
             {!user ? (
               <div className="py-6 px-4 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-md">
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Cloud Kitchen Sync Ready
+                  {t('cloudSyncReadyTitle')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-                  Sign in with Google to save live batch runs, advance shift statuses from the dashboard, and store cold-chain HACCP temperature &amp; sensory evaluations.
+                  {t('cloudSyncReadyDesc')}
                 </p>
                 <button
                   type="button"
                   onClick={signInWithGoogle}
                   className="mt-3 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
                 >
-                  Sign In with Google
+                  {t('signInWithGoogle')}
                 </button>
               </div>
             ) : scopedProduction.length === 0 &&
@@ -1040,17 +1150,17 @@ export function OverviewDashboard({
               scopedSensory.length === 0 ? (
               <div className="py-8 text-center border border-dashed border-slate-200 dark:border-slate-700 rounded-md">
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  No logs recorded for this timeframe
+                  {t('noLogsTimeframeTitle')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Use the Quick Log buttons above (+ Batch, + Temp, + Sensory) to record your first shift entry.
+                  {t('noLogsTimeframeDesc')}
                 </p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {(activityFilter === 'all' || activityFilter === 'batches') &&
                   scopedProduction.slice(0, activityFilter === 'batches' ? 8 : 4).map((log) => {
-                    const linkedRecipe = findRecipeByIndexTitle(log.product);
+                    const linkedRecipe = findLinkedRecipe(log.product);
                     return (
                       <div
                         key={log.id}
@@ -1059,7 +1169,7 @@ export function OverviewDashboard({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                              {log.product}
+                              {linkedRecipe ? getRecipeTitle(linkedRecipe, lang) : log.product}
                             </p>
                             {linkedRecipe && (
                               <button
@@ -1069,7 +1179,7 @@ export function OverviewDashboard({
                                 }
                                 className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:underline whitespace-nowrap"
                               >
-                                Formula #{linkedRecipe.number}
+                                {t('formulaRef', { number: linkedRecipe.number })}
                               </button>
                             )}
                           </div>
@@ -1087,7 +1197,7 @@ export function OverviewDashboard({
                               onClick={() => void handleAdvanceStatus(log, 'in_progress')}
                               className="px-2.5 py-1 text-xs font-medium text-amber-900 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded hover:bg-amber-100 dark:hover:bg-amber-900/60"
                             >
-                              Start
+                              {t('statusStart')}
                             </button>
                           )}
                           {log.status !== 'completed' ? (
@@ -1096,12 +1206,12 @@ export function OverviewDashboard({
                               onClick={() => void handleAdvanceStatus(log, 'completed')}
                               className="px-2.5 py-1 text-xs font-medium text-emerald-800 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
                             >
-                              Complete
+                              {t('statusComplete')}
                             </button>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Done
+                              {t('statusDone')}
                             </span>
                           )}
                         </div>
@@ -1110,64 +1220,71 @@ export function OverviewDashboard({
                   })}
 
                 {(activityFilter === 'all' || activityFilter === 'temps') &&
-                  scopedTemps.slice(0, activityFilter === 'temps' ? 8 : 3).map((t) => (
+                  scopedTemps.slice(0, activityFilter === 'temps' ? 8 : 3).map((tempRow) => (
                     <div
-                      key={t.id}
+                      key={tempRow.id}
                       className="py-3 flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {t.status === 'nominal' ? (
+                        {tempRow.status === 'nominal' ? (
                           <Thermometer className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         ) : (
                           <AlertTriangle
                             className={`w-4 h-4 shrink-0 ${
-                              t.status === 'warning' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'
+                              tempRow.status === 'warning'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-red-600 dark:text-red-400'
                             }`}
                           />
                         )}
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                            {t.equipment}
+                            {tempRow.equipment}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
-                            {t.date} · {t.time} · {t.category} · {t.initials}
+                            {tempRow.date} · {tempRow.time} · {getTempZoneLabel(tempRow.category)} ·{' '}
+                            {tempRow.initials}
                           </p>
                         </div>
                       </div>
                       <span
                         className={`text-xs font-mono tabular-nums font-semibold shrink-0 ${
-                          t.status === 'nominal'
+                          tempRow.status === 'nominal'
                             ? 'text-emerald-700 dark:text-emerald-400'
-                            : t.status === 'warning'
+                            : tempRow.status === 'warning'
                               ? 'text-amber-700 dark:text-amber-400'
                               : 'text-red-700 dark:text-red-400'
                         }`}
                       >
-                        {t.temperatureC.toFixed(1)} °C · {t.status}
+                        {tempRow.temperatureC.toFixed(1)} {degUnit} ·{' '}
+                        {getTempStatusLabel(tempRow.status)}
                       </span>
                     </div>
                   ))}
 
                 {(activityFilter === 'all' || activityFilter === 'sensory') &&
-                  scopedSensory.slice(0, activityFilter === 'sensory' ? 8 : 2).map((s) => (
-                    <div
-                      key={s.id}
-                      className="py-3 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {s.recipeTitle}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
-                          {s.batchDate} · {s.evaluator}
-                          {s.comments ? ` · ${s.comments}` : ''}
-                        </p>
+                  scopedSensory.slice(0, activityFilter === 'sensory' ? 8 : 2).map((s) => {
+                    const linkedRecipe = findLinkedRecipe(s.recipeTitle);
+                    return (
+                      <div
+                        key={s.id}
+                        className="py-3 flex items-center justify-between gap-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+                            {linkedRecipe ? getRecipeTitle(linkedRecipe, lang) : s.recipeTitle}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
+                            {s.batchDate} · {s.evaluator}
+                            {s.comments ? ` · ${s.comments}` : ''}
+                          </p>
+                        </div>
+                        <span className="text-xs font-mono tabular-nums font-semibold text-amber-800 dark:text-amber-400 shrink-0">
+                          {s.overall.toFixed(1)} / 5.0
+                        </span>
                       </div>
-                      <span className="text-xs font-mono tabular-nums font-semibold text-amber-800 dark:text-amber-400 shrink-0">
-                        {s.overall.toFixed(1)} / 5.0
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1177,10 +1294,10 @@ export function OverviewDashboard({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                  Formula Catalog by Category ({allFormulasCount} Formulations)
+                  {t('catalogTitle', { count: allFormulasCount })}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Click any category to preview formulas inline or jump straight to the filtered Recipe Bench.
+                  {t('catalogDesc')}
                 </p>
               </div>
               <button
@@ -1188,7 +1305,7 @@ export function OverviewDashboard({
                 onClick={() => onOpenRecipe('All')}
                 className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 self-start sm:self-auto whitespace-nowrap"
               >
-                Explore All →
+                {t('exploreAll')} {arrowChar}
               </button>
             </div>
 
@@ -1203,11 +1320,11 @@ export function OverviewDashboard({
                         onClick={() =>
                           setExpandedCategory(isExpanded ? null : row.category)
                         }
-                        className="flex-1 text-left min-w-0 group"
+                        className="flex-1 text-start min-w-0 group"
                       >
                         <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
                           <span className="font-medium text-slate-800 dark:text-slate-200 group-hover:text-amber-800 dark:group-hover:text-amber-400 truncate">
-                            {row.category}
+                            {getCategoryLabel(row.category)}
                           </span>
                           <span className="font-mono tabular-nums text-xs text-slate-600 dark:text-slate-400 shrink-0">
                             {row.count} ({row.pct}%)
@@ -1226,24 +1343,25 @@ export function OverviewDashboard({
                         onClick={() => onOpenRecipe(row.category)}
                         className="px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors whitespace-nowrap shrink-0"
                       >
-                        Filter Bench
+                        {t('filterBench')}
                       </button>
                     </div>
 
                     {isExpanded && (
-                      <div className="mt-2.5 pl-2 border-l-2 border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="mt-2.5 ps-2 border-s-2 border-slate-200 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {row.sample.map((sample) => (
                           <button
                             key={sample.id}
                             type="button"
                             onClick={() => onOpenRecipe(sample.category, sample.id)}
-                            className="text-left px-3 py-2 rounded border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-600 hover:bg-amber-50/40 dark:hover:bg-amber-950/30 transition-colors"
+                            className="text-start px-3 py-2 rounded border border-slate-200 dark:border-slate-700 hover:border-amber-300 dark:hover:border-amber-600 hover:bg-amber-50/40 dark:hover:bg-amber-950/30 transition-colors"
                           >
                             <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-                              #{sample.number} {sample.title}
+                              #{sample.number} {getRecipeTitle(sample, lang)}
                             </p>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
-                              {sample.ovenTemp} · {sample.yieldText}
+                              {localizeTemp(sample.ovenTemp, lang)} ·{' '}
+                              {localizeYield(sample.yieldText, lang)}
                             </p>
                           </button>
                         ))}
@@ -1264,14 +1382,14 @@ export function OverviewDashboard({
               {!benchImgFailed ? (
                 <img
                   src="/src/assets/images/pastry_marble_bench_1795100648573.jpg"
-                  alt="Pastry chef marble bench with tempered dark chocolate, pastry cream, and digital scale"
+                  alt={t('benchImgAlt')}
                   referrerPolicy="no-referrer"
                   onError={() => setBenchImgFailed(true)}
                   className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
-                  Pastry Bench &amp; Digital Scale
+                  {t('benchImgFallback')}
                 </div>
               )}
             </div>
@@ -1281,7 +1399,7 @@ export function OverviewDashboard({
                 <div className="flex items-center gap-2">
                   <FlaskConical className="w-4 h-4 text-amber-800 dark:text-amber-400 shrink-0" />
                   <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                    Quick Bench Science Tools
+                    {t('quickScienceTitle')}
                   </h3>
                 </div>
                 <button
@@ -1289,7 +1407,7 @@ export function OverviewDashboard({
                   onClick={() => onNavigate('calculators')}
                   className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 self-start sm:self-auto whitespace-nowrap"
                 >
-                  Full Suite →
+                  {t('fullSuite')} {arrowChar}
                 </button>
               </div>
 
@@ -1297,9 +1415,9 @@ export function OverviewDashboard({
               <div className="grid grid-cols-3 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
                 {(
                   [
-                    { id: 'ddt', label: 'DDT Water' },
-                    { id: 'cost', label: 'Menu Price' },
-                    { id: 'convert', label: '°C / Grams' },
+                    { id: 'ddt', label: t('calcTabDdt') },
+                    { id: 'cost', label: t('calcTabCost') },
+                    { id: 'convert', label: t('calcTabConvert') },
                   ] as { id: QuickCalcMode; label: string }[]
                 ).map((mode) => (
                   <button
@@ -1321,7 +1439,9 @@ export function OverviewDashboard({
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-2.5">
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Target DDT (°C)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('targetDdtLabel')}
+                      </span>
                       <input
                         type="number"
                         value={ddtTarget}
@@ -1330,7 +1450,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Flour (°C)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('flourTempShort')}
+                      </span>
                       <input
                         type="number"
                         value={ddtFlour}
@@ -1339,7 +1461,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Room (°C)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('roomTempShort')}
+                      </span>
                       <input
                         type="number"
                         value={ddtRoom}
@@ -1348,7 +1472,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Friction (°C)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('frictionShort')}
+                      </span>
                       <input
                         type="number"
                         value={ddtFriction}
@@ -1358,9 +1484,11 @@ export function OverviewDashboard({
                     </label>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md px-3.5 py-2.5 flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-600 dark:text-slate-300">Mixing Water Target</span>
+                    <span className="text-xs text-slate-600 dark:text-slate-300">
+                      {t('mixingWaterTarget')}
+                    </span>
                     <span className="text-lg font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400">
-                      {requiredWaterTemp.toFixed(1)} °C
+                      {requiredWaterTemp.toFixed(1)} {degUnit}
                     </span>
                   </div>
                 </div>
@@ -1370,7 +1498,9 @@ export function OverviewDashboard({
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-2">
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Batch ($)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('batchShort')}
+                      </span>
                       <input
                         type="number"
                         step="0.1"
@@ -1381,7 +1511,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Portions</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('portionsLabel')}
+                      </span>
                       <input
                         type="number"
                         min="1"
@@ -1391,7 +1523,9 @@ export function OverviewDashboard({
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Target %</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('targetPctShort')}
+                      </span>
                       <input
                         type="number"
                         min="10"
@@ -1406,13 +1540,17 @@ export function OverviewDashboard({
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md px-3.5 py-2.5 grid grid-cols-2 gap-3">
                     <div>
-                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">Cost / Portion</span>
+                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                        {t('costPerPortionLabel')}
+                      </span>
                       <span className="text-base font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100">
                         ${portionCost.toFixed(2)}
                       </span>
                     </div>
-                    <div className="text-right">
-                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">Suggested Sell</span>
+                    <div className="text-end">
+                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                        {t('suggestedSellLabel')}
+                      </span>
                       <span className="text-base font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400">
                         ${menuPrice.toFixed(2)}
                       </span>
@@ -1425,7 +1563,9 @@ export function OverviewDashboard({
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Oven Temp (°C)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('ovenTempLabel')}
+                      </span>
                       <input
                         type="number"
                         value={convCelsius}
@@ -1433,11 +1573,13 @@ export function OverviewDashboard({
                         className="mt-1 w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-sm font-mono tabular-nums"
                       />
                       <span className="block mt-1 text-xs font-mono tabular-nums text-amber-800 dark:text-amber-400 font-medium">
-                        = {Math.round(convCelsius * 1.8 + 32)} °F
+                        = {Math.round(convCelsius * 1.8 + 32)} {degFUnit}
                       </span>
                     </label>
                     <label className="block">
-                      <span className="text-xs text-slate-600 dark:text-slate-400">Weight (grams)</span>
+                      <span className="text-xs text-slate-600 dark:text-slate-400">
+                        {t('weightGramsLabel')}
+                      </span>
                       <input
                         type="number"
                         value={convGrams}
@@ -1445,7 +1587,7 @@ export function OverviewDashboard({
                         className="mt-1 w-full rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-2.5 py-1.5 text-sm font-mono tabular-nums"
                       />
                       <span className="block mt-1 text-xs font-mono tabular-nums text-amber-800 dark:text-amber-400 font-medium">
-                        = {(convGrams * 0.035274).toFixed(2)} oz
+                        = {(convGrams * 0.035274).toFixed(2)} {t('unitOz')}
                       </span>
                     </label>
                   </div>
@@ -1458,7 +1600,7 @@ export function OverviewDashboard({
                 className="w-full inline-flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
               >
                 <Calculator className="w-3.5 h-3.5" />
-                Open Sugar Stages &amp; Tempering Curves
+                {t('openSugarCurvesBtn')}
               </button>
             </div>
           </div>
@@ -1474,8 +1616,8 @@ export function OverviewDashboard({
                 )}
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
                   {favoriteRecipes.length > 0
-                    ? `Saved Kitchen Favorites (${favoriteRecipes.length})`
-                    : 'Core Bench Staples'}
+                    ? t('savedKitchenFavorites', { count: favoriteRecipes.length })
+                    : t('coreBenchStaples')}
                 </h3>
               </div>
               <button
@@ -1485,7 +1627,7 @@ export function OverviewDashboard({
                 }
                 className="text-xs font-medium text-amber-800 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 whitespace-nowrap"
               >
-                {favoriteRecipes.length > 0 ? 'View Saved →' : 'All Staples →'}
+                {favoriteRecipes.length > 0 ? t('viewSaved') : t('allStaples')} {arrowChar}
               </button>
             </div>
 
@@ -1503,16 +1645,17 @@ export function OverviewDashboard({
                     <button
                       type="button"
                       onClick={() => onOpenRecipe(recipe.category, recipe.id)}
-                      className="flex-1 text-left min-w-0 group"
+                      className="flex-1 text-start min-w-0 group"
                     >
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100 group-hover:text-amber-800 dark:group-hover:text-amber-400 truncate">
-                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400 mr-1.5">
+                        <span className="font-mono text-xs text-slate-500 dark:text-slate-400 me-1.5">
                           #{recipe.number}
                         </span>
-                        {recipe.title}
+                        {getRecipeTitle(recipe, lang)}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums truncate">
-                        {recipe.yieldText} · {recipe.ovenTemp}
+                        {localizeYield(recipe.yieldText, lang)} ·{' '}
+                        {localizeTemp(recipe.ovenTemp, lang)}
                       </p>
                     </button>
 
@@ -1520,7 +1663,7 @@ export function OverviewDashboard({
                       type="button"
                       onClick={() => void handleToggleFavorite(recipe.id)}
                       className="p-2 text-slate-400 hover:text-amber-500 rounded shrink-0"
-                      aria-label={isFav ? 'Unfavorite recipe' : 'Favorite recipe'}
+                      aria-label={isFav ? t('unfavoriteRecipe') : t('favoriteRecipe')}
                     >
                       <Star
                         className={`w-4 h-4 ${
@@ -1537,7 +1680,7 @@ export function OverviewDashboard({
       </section>
 
       <footer className="pt-4 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-500 dark:text-slate-400">
-        Endale Tsegaye / Charijon 2026
+        {t('footerCredit')}
       </footer>
     </div>
   );

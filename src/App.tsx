@@ -4,6 +4,7 @@ import {
   Calculator,
   ChefHat,
   ClipboardList,
+  Globe,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -26,6 +27,8 @@ import { ProductionSafetyWorkspace } from './components/ProductionSafetyWorkspac
 import { RecipesExplorer } from './components/RecipesExplorer';
 import { TrainingManualView } from './components/TrainingManualView';
 import { RecipeCategory } from './data/recipes';
+import { I18nProvider, useI18n } from './i18n/I18nContext';
+import { AppLanguage, TranslationKey } from './i18n/translations';
 import {
   CustomRecipeItem,
   ProductionLogItem,
@@ -36,17 +39,18 @@ import {
   subscribeOwnerCollection,
 } from './lib/kitchenRepository';
 
-const NAV_ITEMS: { id: WorkspaceSection; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: 'overview', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'recipes', label: 'Standardized Recipes', icon: ChefHat },
-  { id: 'manual', label: 'Training Manual', icon: BookOpen },
-  { id: 'operations', label: 'Production & HACCP', icon: ClipboardList },
-  { id: 'calculators', label: 'Science & Costing', icon: Calculator },
+const NAV_ITEMS: { id: WorkspaceSection; labelKey: TranslationKey; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'overview', labelKey: 'navDashboard', icon: LayoutDashboard },
+  { id: 'recipes', labelKey: 'navRecipes', icon: ChefHat },
+  { id: 'manual', labelKey: 'navManual', icon: BookOpen },
+  { id: 'operations', labelKey: 'navOperations', icon: ClipboardList },
+  { id: 'calculators', labelKey: 'navCalculators', icon: Calculator },
 ];
 
 function WorkspaceShell() {
   const { user, profile, loading, authError, signInWithGoogle, signOut, updateProfileSettings } =
     useAuth();
+  const { lang, setLang, t } = useI18n();
 
   const [section, setSection] = useState<WorkspaceSection>('overview');
   const [recipeCategoryFilter, setRecipeCategoryFilter] = useState<RecipeCategory | 'All'>('All');
@@ -86,6 +90,7 @@ function WorkspaceShell() {
   const [kitchenNameDraft, setKitchenNameDraft] = useState('');
   const [roleDraft, setRoleDraft] = useState<ChefRole>('pastry_chef');
   const [foodCostDraft, setFoodCostDraft] = useState(30);
+  const [langDraft, setLangDraft] = useState<AppLanguage>(lang);
   const [savingSettings, setSavingSettings] = useState(false);
   const [avatarFailed, setAvatarFailed] = useState(false);
 
@@ -151,10 +156,11 @@ function WorkspaceShell() {
   }, [user]);
 
   const openSettingsModal = () => {
-    setDisplayNameDraft(profile?.displayName || user?.displayName || 'Head Baker');
-    setKitchenNameDraft(profile?.kitchenName || 'Main Artisan Bakery');
+    setDisplayNameDraft(profile?.displayName || user?.displayName || t('defaultChefName'));
+    setKitchenNameDraft(profile?.kitchenName || t('defaultKitchenName'));
     setRoleDraft(profile?.role || 'pastry_chef');
     setFoodCostDraft(profile?.targetFoodCostPct ?? 30);
+    setLangDraft(lang);
     setSettingsOpen(true);
   };
 
@@ -162,6 +168,7 @@ function WorkspaceShell() {
     e.preventDefault();
     setSavingSettings(true);
     try {
+      setLang(langDraft, user?.uid);
       await updateProfileSettings({
         displayName: displayNameDraft,
         kitchenName: kitchenNameDraft,
@@ -190,20 +197,20 @@ function WorkspaceShell() {
     setSection('operations');
   };
 
-  const breadcrumbLabel =
-    NAV_ITEMS.find((item) => item.id === section)?.label || 'Dashboard';
+  const activeNav = NAV_ITEMS.find((item) => item.id === section);
+  const breadcrumbLabel = activeNav ? t(activeNav.labelKey) : t('navDashboard');
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex overflow-x-hidden transition-colors">
       {/* Desktop Sidebar */}
-      <aside className="no-print hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+      <aside className="no-print hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:start-0 bg-white dark:bg-slate-900 border-e border-slate-200 dark:border-slate-800">
         <div className="h-16 px-5 flex items-center border-b border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setSection('overview')}
-            className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap shrink-0 text-left"
+            className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap shrink-0 text-start"
           >
-            Atelier Patisserie Pro
+            {t('appBrand')}
           </button>
         </div>
 
@@ -222,14 +229,14 @@ function WorkspaceShell() {
                     setRecipeFavoritesOnly(false);
                   }
                 }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap text-start ${
                   active
                     ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className="truncate">{t(item.labelKey)}</span>
               </button>
             );
           })}
@@ -245,7 +252,7 @@ function WorkspaceShell() {
                 {!avatarFailed ? (
                   <img
                     src={user.photoURL || '/src/assets/images/head_chef_avatar_1795100650347.jpg'}
-                    alt={profile?.displayName || 'Chef avatar'}
+                    alt={profile?.displayName || t('chefAvatarAlt')}
                     referrerPolicy="no-referrer"
                     onError={() => setAvatarFailed(true)}
                     className="w-9 h-9 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
@@ -257,7 +264,7 @@ function WorkspaceShell() {
                 )}
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-                    {profile?.displayName || user.displayName || 'Chef'}
+                    {profile?.displayName || user.displayName || t('defaultChefShort')}
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                     {profile?.kitchenName || user.email}
@@ -270,16 +277,17 @@ function WorkspaceShell() {
                   onClick={openSettingsModal}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
-                  <Settings className="w-3.5 h-3.5" />
-                  Kitchen
+                  <Settings className="w-3.5 h-3.5 shrink-0" />
+                  {t('kitchenButton')}
                 </button>
                 <button
                   type="button"
                   onClick={signOut}
                   className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                  title="Sign out"
+                  title={t('signOutTitle')}
+                  aria-label={t('signOutTitle')}
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5 rtl:rotate-180" />
                 </button>
               </div>
             </div>
@@ -289,29 +297,29 @@ function WorkspaceShell() {
               onClick={signInWithGoogle}
               className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
             >
-              <LogIn className="w-4 h-4" />
-              Sign In with Google
+              <LogIn className="w-4 h-4 shrink-0 rtl:rotate-180" />
+              {t('signInWithGoogle')}
             </button>
           )}
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
+      <div className="flex-1 lg:ps-64 flex flex-col min-w-0">
         {/* Top Bar Contract */}
         <header className="no-print sticky top-0 z-30 h-14 sm:h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-3.5 sm:px-8 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden min-w-[40px] min-h-[40px] inline-flex items-center justify-center -ml-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-md"
-              aria-label="Open navigation menu"
+              className="lg:hidden min-w-[40px] min-h-[40px] inline-flex items-center justify-center -ms-1.5 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-md"
+              aria-label={t('openNavMenu')}
             >
               <Menu className="w-5 h-5" />
             </button>
             <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
               <span className="font-medium text-slate-900 dark:text-slate-100 hidden sm:inline">
-                {profile?.kitchenName || 'Baking & Confectionery Manual'}
+                {profile?.kitchenName || t('defaultKitchenBreadcrumb')}
               </span>
               <span className="mx-2 text-slate-300 dark:text-slate-700 hidden sm:inline">/</span>
               <span className="font-medium sm:font-normal text-slate-900 dark:text-slate-200 sm:text-slate-600 dark:sm:text-slate-300">
@@ -320,18 +328,19 @@ function WorkspaceShell() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <button
               type="button"
               onClick={() => {
                 setSection('manual');
                 setTimeout(() => window.print(), 120);
               }}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
             >
               <Printer className="w-3.5 h-3.5" />
-              Print / PDF
+              {t('printPdf')}
             </button>
+
             {user ? (
               <button
                 type="button"
@@ -339,34 +348,57 @@ function WorkspaceShell() {
                 className="lg:hidden inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0"
               >
                 <Settings className="w-3.5 h-3.5" />
-                Kitchen
+                <span className="hidden sm:inline">{t('kitchenButton')}</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={signInWithGoogle}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap shrink-0"
               >
-                Sign In
+                {t('signIn')}
               </button>
             )}
+
+            {/* Language Selector */}
+            <div className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md min-h-[36px] shrink-0">
+              <Globe className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300 shrink-0" />
+              <select
+                value={lang}
+                onChange={(e) => setLang(e.target.value as AppLanguage, user?.uid)}
+                aria-label={t('switchLanguageLabel')}
+                className="bg-transparent text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer"
+              >
+                <option value="en" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                  English
+                </option>
+                <option value="ar" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                  العربية
+                </option>
+                <option value="am" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                  አማርኛ
+                </option>
+              </select>
+            </div>
+
+            {/* Dark Mode Toggle */}
             <button
               type="button"
               onClick={() => setDarkMode((prev) => !prev)}
               aria-pressed={darkMode}
-              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={darkMode ? t('switchToLight') : t('switchToDark')}
+              title={darkMode ? t('switchToLight') : t('switchToDark')}
               className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-medium text-slate-700 dark:text-amber-300 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors whitespace-nowrap shrink-0 min-h-[36px]"
             >
               {darkMode ? (
                 <>
                   <Sun className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Light</span>
+                  <span className="hidden sm:inline">{t('lightMode')}</span>
                 </>
               ) : (
                 <>
                   <Moon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Dark</span>
+                  <span className="hidden sm:inline">{t('darkMode')}</span>
                 </>
               )}
             </button>
@@ -436,9 +468,9 @@ function WorkspaceShell() {
             className="fixed inset-0 bg-slate-900/60"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="relative w-72 max-w-[85vw] bg-white dark:bg-slate-900 h-full border-r border-slate-200 dark:border-slate-800 flex flex-col p-4">
+          <div className="relative w-72 max-w-[85vw] bg-white dark:bg-slate-900 h-full border-e border-slate-200 dark:border-slate-800 flex flex-col p-4">
             <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">Atelier Patisserie Pro</span>
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100">{t('appBrand')}</span>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
@@ -459,19 +491,34 @@ function WorkspaceShell() {
                       setSection(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md text-start ${
                       active
                         ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{t(item.labelKey)}</span>
                   </button>
                 );
               })}
             </nav>
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  {t('switchLanguageLabel')}
+                </span>
+                <select
+                  value={lang}
+                  onChange={(e) => setLang(e.target.value as AppLanguage, user?.uid)}
+                  className="px-2 py-1 text-xs font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100"
+                >
+                  <option value="en">English</option>
+                  <option value="ar">العربية</option>
+                  <option value="am">አማርኛ</option>
+                </select>
+              </div>
               {user ? (
                 <div className="space-y-2.5">
                   <div className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
@@ -487,14 +534,14 @@ function WorkspaceShell() {
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 rounded"
                     >
                       <Settings className="w-3.5 h-3.5" />
-                      Kitchen
+                      {t('kitchenButton')}
                     </button>
                     <button
                       type="button"
                       onClick={signOut}
                       className="px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 rounded"
                     >
-                      Sign Out
+                      {t('signOut')}
                     </button>
                   </div>
                 </div>
@@ -507,7 +554,7 @@ function WorkspaceShell() {
                   }}
                   className="w-full py-2.5 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md"
                 >
-                  Sign In with Google
+                  {t('signInWithGoogle')}
                 </button>
               )}
             </div>
@@ -521,7 +568,7 @@ function WorkspaceShell() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
               <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Kitchen Workspace Settings
+                {t('settingsTitle')}
               </h3>
               <button
                 type="button"
@@ -533,7 +580,7 @@ function WorkspaceShell() {
             </div>
             <form onSubmit={handleSaveSettings} className="space-y-4">
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Chef / Operator Name</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('operatorNameLabel')}</span>
                 <input
                   required
                   maxLength={100}
@@ -543,7 +590,7 @@ function WorkspaceShell() {
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Kitchen / Bakery Name</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('kitchenNameLabel')}</span>
                 <input
                   required
                   maxLength={120}
@@ -554,19 +601,19 @@ function WorkspaceShell() {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Role</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('roleLabel')}</span>
                   <select
                     value={roleDraft}
                     onChange={(e) => setRoleDraft(e.target.value as ChefRole)}
                     className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                   >
-                    <option value="pastry_chef">Pastry Chef</option>
-                    <option value="baker">Baker</option>
-                    <option value="instructor">Culinary Instructor</option>
+                    <option value="pastry_chef">{t('rolePastryChef')}</option>
+                    <option value="baker">{t('roleBaker')}</option>
+                    <option value="instructor">{t('roleInstructor')}</option>
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Target Food Cost (%)</span>
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('targetFoodCostLabel')}</span>
                   <input
                     type="number"
                     min="10"
@@ -578,20 +625,32 @@ function WorkspaceShell() {
                   />
                 </label>
               </div>
+              <label className="block">
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('languagePreferenceLabel')}</span>
+                <select
+                  value={langDraft}
+                  onChange={(e) => setLangDraft(e.target.value as AppLanguage)}
+                  className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
+                >
+                  <option value="en">English</option>
+                  <option value="ar">العربية</option>
+                  <option value="am">አማርኛ</option>
+                </select>
+              </label>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(false)}
                   className="px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={savingSettings}
                   className="px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white"
                 >
-                  {savingSettings ? 'Saving...' : 'Save Settings'}
+                  {savingSettings ? t('saving') : t('saveSettings')}
                 </button>
               </div>
             </form>
@@ -604,10 +663,12 @@ function WorkspaceShell() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <WorkspaceShell />
-      </AuthProvider>
-    </ErrorBoundary>
+    <I18nProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <WorkspaceShell />
+        </AuthProvider>
+      </ErrorBoundary>
+    </I18nProvider>
   );
 }

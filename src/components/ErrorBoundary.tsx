@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { getStoredLanguage, translateWithLang } from '../i18n/I18nContext';
 
 interface Props {
   children: React.ReactNode;
@@ -17,9 +18,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
+    const lang = getStoredLanguage();
     return {
       hasError: true,
-      errorMessage: error.message || 'An unexpected application error occurred.',
+      errorMessage: error.message || translateWithLang(lang, 'unexpectedError'),
     };
   }
 
@@ -33,27 +35,31 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const lang = getStoredLanguage();
       let friendly = this.state.errorMessage;
       try {
         const parsed = JSON.parse(this.state.errorMessage);
         if (parsed && typeof parsed.error === 'string') {
-          friendly = `${parsed.error} (Operation: ${parsed.operationType} on ${parsed.path || 'unknown'})`;
+          friendly = `${parsed.error} (${translateWithLang(lang, 'operationLabel')}: ${parsed.operationType} — ${parsed.path || translateWithLang(lang, 'unknownPath')})`;
         }
       } catch {
         // Not JSON
       }
 
       return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6">
+        <div
+          dir={lang === 'ar' ? 'rtl' : 'ltr'}
+          className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-6"
+        >
           <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8">
             <div className="flex items-center gap-3 text-red-700 dark:text-red-400 mb-3">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                Workspace Recovery Notice
+                {translateWithLang(lang, 'recoveryTitle')}
               </h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">
-              The kitchen workspace encountered an unexpected error while syncing data.
+              {translateWithLang(lang, 'recoveryDesc')}
             </p>
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md p-3 text-xs font-mono text-slate-700 dark:text-slate-300 mb-6 break-words">
               {friendly}
@@ -64,7 +70,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
-              Reload Workspace View
+              {translateWithLang(lang, 'reloadWorkspace')}
             </button>
           </div>
         </div>

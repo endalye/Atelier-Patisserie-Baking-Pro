@@ -1,23 +1,11 @@
 import { useState } from 'react';
 import { Calculator, Flame, Scale, Thermometer } from 'lucide-react';
-
-const SUGAR_STAGES = [
-  { stage: 'Thread', temp: '110–112 °C', use: 'Syrups, baklava glaze, fruit preserves' },
-  { stage: 'Soft Ball', temp: '112–116 °C', use: 'Vanilla fudge, fondant, buttercream bases' },
-  { stage: 'Firm Ball', temp: '118–120 °C', use: 'Salted caramels, Italian meringue syrup' },
-  { stage: 'Hard Ball', temp: '121–130 °C', use: 'Marshmallows, nougat, divinity' },
-  { stage: 'Soft Crack', temp: '132–143 °C', use: 'Taffy, butterscotch' },
-  { stage: 'Hard Crack', temp: '146–155 °C', use: 'Peanut brittle, spun sugar, lollipops' },
-  { stage: 'Caramel', temp: '160–180 °C', use: 'Caramel sauce, crème caramel, praline' },
-];
-
-const CHOCOLATE_CURVES = [
-  { type: 'Dark Couverture (50–70%)', melt: '45–50 °C', cool: '27–28 °C', work: '31–32 °C', storage: '1–2 years (15–18 °C)' },
-  { type: 'Milk Couverture (30–40%)', melt: '45 °C', cool: '26–27 °C', work: '29–30 °C', storage: '6–12 months (15–18 °C)' },
-  { type: 'White Couverture', melt: '42–45 °C', cool: '25–26 °C', work: '28–29 °C', storage: '6–12 months (15–18 °C)' },
-];
+import { useI18n } from '../i18n/I18nContext';
+import { CHOCOLATE_CURVES_LOCALIZED, SUGAR_STAGES_LOCALIZED } from '../i18n/translations';
 
 export function CalculatorsView() {
+  const { lang, t } = useI18n();
+
   // Desired Dough Temperature (3-Factor Formula)
   const [targetDDT, setTargetDDT] = useState(25);
   const [flourTemp, setFlourTemp] = useState(20);
@@ -40,14 +28,17 @@ export function CalculatorsView() {
   const suggestedPrice =
     targetFoodCostPct > 0 ? costPerPortion / (targetFoodCostPct / 100) : 0;
 
+  const sugarStages = SUGAR_STAGES_LOCALIZED[lang];
+  const chocolateCurves = CHOCOLATE_CURVES_LOCALIZED[lang];
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Baking Science &amp; Production Calculators
+          {t('calcHeaderTitle')}
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          Metric kitchen tools for dough water temperature, commercial costing, sugar cooking stages, and chocolate tempering curves.
+          {t('calcHeaderDesc')}
         </p>
       </div>
 
@@ -55,18 +46,18 @@ export function CalculatorsView() {
         {/* DDT Calculator */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
           <div className="flex items-center gap-2.5 mb-4">
-            <Thermometer className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+            <Thermometer className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0" />
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Desired Dough Temperature (DDT) Calculator
+              {t('ddtCalcTitle')}
             </h3>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-5">
-            3-factor method: Water Temp = (Target DDT × 3) − (Flour Temp + Room Temp + Mixer Friction Factor).
+            {t('ddtCalcFormula')}
           </p>
 
           <div className="grid grid-cols-2 gap-4 mb-5">
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Target DDT (°C)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('targetDdtLabel')}</span>
               <input
                 type="number"
                 value={targetDDT}
@@ -75,7 +66,7 @@ export function CalculatorsView() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Flour Temp (°C)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('flourTempLabel')}</span>
               <input
                 type="number"
                 value={flourTemp}
@@ -84,7 +75,7 @@ export function CalculatorsView() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Room Temp (°C)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('roomTempLabel')}</span>
               <input
                 type="number"
                 value={roomTemp}
@@ -93,7 +84,7 @@ export function CalculatorsView() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Friction Factor (°C)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('frictionFactorLabel')}</span>
               <input
                 type="number"
                 value={frictionFactor}
@@ -105,17 +96,17 @@ export function CalculatorsView() {
 
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Required Mixing Water Temperature</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('requiredWaterTempLabel')}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 {requiredWaterTemp < 4
-                  ? 'Ice-chilled water required to prevent over-fermentation'
+                  ? t('ddtAdvisoryIce')
                   : requiredWaterTemp > 38
-                    ? 'Warm water (keep below 40 °C to protect yeast)'
-                    : 'Standard tempered mixing water range'}
+                    ? t('ddtAdvisoryWarm')
+                    : t('ddtAdvisoryStandard')}
               </p>
             </div>
-            <span className="text-2xl font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400">
-              {requiredWaterTemp.toFixed(1)} °C
+            <span dir="ltr" className="text-2xl font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400">
+              {requiredWaterTemp.toFixed(1)} {lang === 'ar' ? '°م' : '°C'}
             </span>
           </div>
         </section>
@@ -123,18 +114,18 @@ export function CalculatorsView() {
         {/* Commercial Costing Calculator */}
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
           <div className="flex items-center gap-2.5 mb-4">
-            <Calculator className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+            <Calculator className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0" />
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Batch Costing &amp; Menu Pricing Engine
+              {t('costingEngineTitle')}
             </h3>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-5">
-            Commercial target food cost range is 25–35%. Selling Price = Cost per Portion ÷ Target Food Cost %.
+            {t('costingEngineFormula')}
           </p>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Batch Cost ($)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('batchCostDollarLabel')}</span>
               <input
                 type="number"
                 step="0.1"
@@ -145,7 +136,7 @@ export function CalculatorsView() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Yield (Portions)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('yieldPortionsLabel')}</span>
               <input
                 type="number"
                 min="1"
@@ -155,7 +146,7 @@ export function CalculatorsView() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Target Cost (%)</span>
+              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('targetCostPctLabel')}</span>
               <input
                 type="number"
                 min="10"
@@ -169,20 +160,20 @@ export function CalculatorsView() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4">
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Cost / Portion</p>
-              <p className="text-lg font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('costPerPortionLabel')}</p>
+              <p dir="ltr" className="text-lg font-semibold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-1 text-start">
                 ${costPerPortion.toFixed(2)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Suggested Price</p>
-              <p className="text-lg font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('suggestedPriceLabel')}</p>
+              <p dir="ltr" className="text-lg font-semibold font-mono tabular-nums text-amber-800 dark:text-amber-400 mt-1 text-start">
                 ${suggestedPrice.toFixed(2)}
               </p>
             </div>
             <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Gross Margin</p>
-              <p className="text-lg font-semibold font-mono tabular-nums text-emerald-700 dark:text-emerald-400 mt-1">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('grossMarginLabel')}</p>
+              <p dir="ltr" className="text-lg font-semibold font-mono tabular-nums text-emerald-700 dark:text-emerald-400 mt-1 text-start">
                 ${(suggestedPrice - costPerPortion).toFixed(2)}
               </p>
             </div>
@@ -193,15 +184,15 @@ export function CalculatorsView() {
       {/* Metric Conversion Strip */}
       <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-6">
         <div className="flex items-center gap-2.5 mb-4">
-          <Scale className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+          <Scale className="w-5 h-5 text-amber-700 dark:text-amber-400 shrink-0" />
           <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-            Metric ↔ Imperial Kitchen Reference Converter
+            {t('metricConverterTitle')}
           </h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4">
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Weight (grams → oz / lb)
+              {t('weightGramsImperialLabel')}
             </label>
             <input
               type="number"
@@ -210,13 +201,13 @@ export function CalculatorsView() {
               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm font-mono tabular-nums"
             />
             <p className="mt-2 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300">
-              {(gramsInput * 0.035274).toFixed(2)} oz · {(gramsInput / 1000 * 2.20462).toFixed(2)} lb
+              {(gramsInput * 0.035274).toFixed(2)} {t('unitOz')} · {((gramsInput / 1000) * 2.20462).toFixed(2)} {t('unitLb')}
             </p>
           </div>
 
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4">
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Volume (ml → fl oz / pints)
+              {t('volumeMlImperialLabel')}
             </label>
             <input
               type="number"
@@ -225,13 +216,13 @@ export function CalculatorsView() {
               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm font-mono tabular-nums"
             />
             <p className="mt-2 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300">
-              {(mlInput * 0.033814).toFixed(2)} fl oz · {(mlInput / 1000 * 1.75975).toFixed(2)} UK pt
+              {(mlInput * 0.033814).toFixed(2)} {t('unitFlOz')} · {((mlInput / 1000) * 1.75975).toFixed(2)} {t('unitUkPt')}
             </p>
           </div>
 
           <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-md p-4">
             <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Oven Temperature (°C → °F)
+              {t('ovenTempCFLabel')}
             </label>
             <input
               type="number"
@@ -240,7 +231,7 @@ export function CalculatorsView() {
               className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm font-mono tabular-nums"
             />
             <p className="mt-2 text-xs font-mono tabular-nums text-slate-700 dark:text-slate-300">
-              {Math.round(celsiusInput * 1.8 + 32)} °F
+              {Math.round(celsiusInput * 1.8 + 32)} {lang === 'ar' ? '°ف' : '°F'}
             </p>
           </div>
         </div>
@@ -250,20 +241,20 @@ export function CalculatorsView() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Sugar Cooking Stages (Part 9)</h3>
+            <Flame className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('sugarStagesTitle')}</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-start text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Stage</th>
-                  <th className="px-4 py-2.5 font-medium">Temp Range</th>
-                  <th className="px-4 py-2.5 font-medium">Applications</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colStage')}</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colTempRange')}</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colApplications')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {SUGAR_STAGES.map((row) => (
+                {sugarStages.map((row) => (
                   <tr key={row.stage} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100">{row.stage}</td>
                     <td className="px-4 py-2.5 font-mono tabular-nums text-amber-800 dark:text-amber-400">{row.temp}</td>
@@ -277,21 +268,21 @@ export function CalculatorsView() {
 
         <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-            <Thermometer className="w-4 h-4 text-amber-700 dark:text-amber-400" />
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Chocolate Tempering Curves (Part 9)</h3>
+            <Thermometer className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t('chocolateCurvesTitle')}</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-start text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">Type</th>
-                  <th className="px-4 py-2.5 font-medium">Melt</th>
-                  <th className="px-4 py-2.5 font-medium">Cool</th>
-                  <th className="px-4 py-2.5 font-medium">Work</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colType')}</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colMelt')}</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colCool')}</th>
+                  <th className="px-4 py-2.5 font-medium text-start">{t('colWork')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {CHOCOLATE_CURVES.map((row) => (
+                {chocolateCurves.map((row) => (
                   <tr key={row.type} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100 text-xs">{row.type}</td>
                     <td className="px-4 py-2.5 font-mono tabular-nums text-slate-700 dark:text-slate-300 text-xs">{row.melt}</td>

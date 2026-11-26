@@ -20,6 +20,7 @@ import {
   handleFirestoreError,
   OperationType,
 } from '../lib/firebase';
+import { getStoredLanguage, translateWithLang, useI18n } from '../i18n/I18nContext';
 
 export type ChefRole = 'baker' | 'pastry_chef' | 'instructor';
 
@@ -52,6 +53,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { syncUserLanguage } = useI18n();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setAuthError(null);
+      syncUserLanguage(firebaseUser?.uid);
 
       if (!firebaseUser) {
         setProfile(null);
@@ -76,11 +79,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (snap.exists()) {
           setProfile(snap.data() as UserProfile);
         } else {
+          const currentLang = getStoredLanguage();
           const initialData = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || 'chef@kitchen.local',
-            displayName: (firebaseUser.displayName || 'Head Baker').slice(0, 100),
-            kitchenName: 'Main Artisan Bakery',
+            displayName: (firebaseUser.displayName || translateWithLang(currentLang, 'defaultChefName')).slice(0, 100),
+            kitchenName: translateWithLang(currentLang, 'defaultKitchenName'),
             role: 'pastry_chef' as ChefRole,
             targetFoodCostPct: 30,
             createdAt: serverTimestamp(),
@@ -96,7 +100,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           handleFirestoreError(error, OperationType.GET, userPath);
         } catch (wrapped) {
-          setAuthError(wrapped instanceof Error ? wrapped.message : 'Unable to load kitchen profile.');
+          const currentLang = getStoredLanguage();
+          setAuthError(
+            wrapped instanceof Error ? wrapped.message : translateWithLang(currentLang, 'unableToLoadProfile')
+          );
         }
       } finally {
         setLoading(false);
@@ -104,14 +111,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [syncUserLanguage]);
 
   const signInWithGoogle = async () => {
     setAuthError(null);
     try {
       await signInWithPopup(auth, googleAuthProvider);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Google Sign-In failed.';
+      const currentLang = getStoredLanguage();
+      const msg = error instanceof Error ? error.message : translateWithLang(currentLang, 'googleSignInFailed');
       setAuthError(msg);
     }
   };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,8 +21,11 @@ import {
   deleteOwnerDocument,
   updateProductionLogStatus,
 } from '../lib/kitchenRepository';
-import { STANDARDIZED_RECIPES } from '../data/recipes';
+import { STANDARDIZED_RECIPES, findRecipeByIndexTitle } from '../data/recipes';
 import { useAuth } from './AuthContext';
+import { useI18n } from '../i18n/I18nContext';
+import { RECIPE_TITLES_AR, getRecipeTitle } from '../i18n/recipesAr';
+import { RECIPE_TITLES_AM } from '../i18n/recipesAm';
 
 interface ProductionSafetyWorkspaceProps {
   productionLogs: ProductionLogItem[];
@@ -46,21 +49,24 @@ export function ProductionSafetyWorkspace({
   initialTab = 'production',
 }: ProductionSafetyWorkspaceProps) {
   const { user, profile, signInWithGoogle } = useAuth();
+  const { lang, t } = useI18n();
   const [activeTab, setActiveTab] = useState<LogTab>(initialTab);
 
   // Appendix A: Production Form
   const [prodDate, setProdDate] = useState(todayIso());
-  const [prodProduct, setProdProduct] = useState('Classic White Sandwich Bread');
-  const [prodBatchSize, setProdBatchSize] = useState('10 loaves');
+  const [prodProduct, setProdProduct] = useState(() => getRecipeTitle(STANDARDIZED_RECIPES[17], lang));
+  const [prodBatchSize, setProdBatchSize] = useState(() => t('defaultOpsBatchSize'));
   const [prodStartTime, setProdStartTime] = useState('05:15');
-  const [prodOperator, setProdOperator] = useState(profile?.displayName || 'Baker 1');
+  const [prodOperator, setProdOperator] = useState(
+    () => profile?.displayName || t('defaultOpsOperator')
+  );
   const [prodNotes, setProdNotes] = useState('');
   const [submittingProd, setSubmittingProd] = useState(false);
 
   // Appendix B: Temperature Form
   const [tempDate, setTempDate] = useState(todayIso());
   const [tempTime, setTempTime] = useState('06:30');
-  const [tempEquipment, setTempEquipment] = useState('Walk-in Dairy Chiller');
+  const [tempEquipment, setTempEquipment] = useState(() => t('defaultProbeEquipment'));
   const [tempCategory, setTempCategory] = useState<TempCategory>('chilled');
   const [tempC, setTempC] = useState(3.4);
   const [tempAction, setTempAction] = useState('');
@@ -68,9 +74,11 @@ export function ProductionSafetyWorkspace({
   const [submittingTemp, setSubmittingTemp] = useState(false);
 
   // Appendix D: Sensory Form
-  const [sensRecipe, setSensRecipe] = useState(STANDARDIZED_RECIPES[0].title);
+  const [sensRecipe, setSensRecipe] = useState(() => getRecipeTitle(STANDARDIZED_RECIPES[0], lang));
   const [sensDate, setSensDate] = useState(todayIso());
-  const [sensEvaluator, setSensEvaluator] = useState(profile?.displayName || 'Head Chef');
+  const [sensEvaluator, setSensEvaluator] = useState(
+    () => profile?.displayName || t('defaultOpsEvaluator')
+  );
   const [sensAppearance, setSensAppearance] = useState(5);
   const [sensColour, setSensColour] = useState(5);
   const [sensTexture, setSensTexture] = useState(4);
@@ -79,22 +87,84 @@ export function ProductionSafetyWorkspace({
   const [sensComments, setSensComments] = useState('');
   const [submittingSens, setSubmittingSens] = useState(false);
 
+  const prevDefaultsRef = useRef({
+    prodProduct: getRecipeTitle(STANDARDIZED_RECIPES[17], lang),
+    prodBatchSize: t('defaultOpsBatchSize'),
+    prodOperator: t('defaultOpsOperator'),
+    tempEquipment: t('defaultProbeEquipment'),
+    sensRecipe: getRecipeTitle(STANDARDIZED_RECIPES[0], lang),
+    sensEvaluator: t('defaultOpsEvaluator'),
+  });
+
+  useEffect(() => {
+    const prev = prevDefaultsRef.current;
+    const nextDefaults = {
+      prodProduct: getRecipeTitle(STANDARDIZED_RECIPES[17], lang),
+      prodBatchSize: t('defaultOpsBatchSize'),
+      prodOperator: t('defaultOpsOperator'),
+      tempEquipment: t('defaultProbeEquipment'),
+      sensRecipe: getRecipeTitle(STANDARDIZED_RECIPES[0], lang),
+      sensEvaluator: t('defaultOpsEvaluator'),
+    };
+    setProdProduct((v) => (v === prev.prodProduct ? nextDefaults.prodProduct : v));
+    setProdBatchSize((v) => (v === prev.prodBatchSize ? nextDefaults.prodBatchSize : v));
+    if (!profile?.displayName) {
+      setProdOperator((v) => (v === prev.prodOperator ? nextDefaults.prodOperator : v));
+      setSensEvaluator((v) => (v === prev.sensEvaluator ? nextDefaults.sensEvaluator : v));
+    }
+    setTempEquipment((v) => (v === prev.tempEquipment ? nextDefaults.tempEquipment : v));
+    setSensRecipe((v) => (v === prev.sensRecipe ? nextDefaults.sensRecipe : v));
+    prevDefaultsRef.current = nextDefaults;
+  }, [lang, profile?.displayName, t]);
+
+  const degUnit = lang === 'ar' ? '°م' : '°C';
+  const yieldArrow = lang === 'ar' ? '←' : '→';
+
+  const getZoneLabel = (zone: TempCategory) => {
+    switch (zone) {
+      case 'chilled':
+        return t('zoneShortChilled');
+      case 'frozen':
+        return t('zoneShortFrozen');
+      case 'chocolate':
+        return t('zoneShortChocolate');
+      case 'ambient':
+        return t('zoneShortAmbient');
+      case 'proofer':
+        return t('zoneShortProofer');
+      case 'oven':
+        return t('zoneShortOven');
+    }
+  };
+
+  const resolveDisplayRecipeTitle = (stored: string) => {
+    const direct = findRecipeByIndexTitle(stored);
+    if (direct) return getRecipeTitle(direct, lang);
+    const byTranslated = STANDARDIZED_RECIPES.find(
+      (r) =>
+        RECIPE_TITLES_AR[r.id] === stored.trim() ||
+        RECIPE_TITLES_AM[r.id] === stored.trim()
+    );
+    if (byTranslated) return getRecipeTitle(byTranslated, lang);
+    return stored;
+  };
+
   if (!user) {
     return (
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-10 text-center max-w-2xl mx-auto">
         <ShieldCheck className="w-10 h-10 text-amber-800 dark:text-amber-400 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-          Kitchen Operations &amp; HACCP Compliance Logs
+          {t('opsSignedOutTitle')}
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-          Sign in with your Google account to create, persist, and audit daily production schedules (Appendix A), equipment temperature logs (Appendix B), and sensory QC scorecards (Appendix D) in your private kitchen workspace.
+          {t('opsSignedOutDesc')}
         </p>
         <button
           type="button"
           onClick={signInWithGoogle}
           className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
         >
-          Sign In with Google to Unlock Cloud Logs
+          {t('opsSignInUnlock')}
         </button>
       </div>
     );
@@ -111,7 +181,7 @@ export function ProductionSafetyWorkspace({
         startTime: prodStartTime,
         endTime: '',
         actualYield: '',
-        operator: prodOperator || profile?.displayName || 'Baker',
+        operator: prodOperator || profile?.displayName || t('roleBaker'),
         status: 'scheduled',
         notes: prodNotes,
       });
@@ -158,7 +228,7 @@ export function ProductionSafetyWorkspace({
       await createSensoryEvaluation(user.uid, {
         recipeTitle: sensRecipe,
         batchDate: sensDate,
-        evaluator: sensEvaluator || profile?.displayName || 'Chef',
+        evaluator: sensEvaluator || profile?.displayName || t('defaultChefShort'),
         appearance: sensAppearance,
         colour: sensColour,
         texture: sensTexture,
@@ -177,10 +247,10 @@ export function ProductionSafetyWorkspace({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Production, HACCP &amp; Quality Control Logs
+            {t('opsTitle')}
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Cloud-synced kitchen records implementing Appendices A, B, and D from the training manual.
+            {t('opsSubtitle')}
           </p>
         </div>
 
@@ -195,7 +265,7 @@ export function ProductionSafetyWorkspace({
             }`}
           >
             <ClipboardList className="w-3.5 h-3.5" />
-            Production ({productionLogs.length})
+            {t('tabProduction', { count: productionLogs.length })}
           </button>
           <button
             type="button"
@@ -207,7 +277,7 @@ export function ProductionSafetyWorkspace({
             }`}
           >
             <Thermometer className="w-3.5 h-3.5" />
-            Temperatures ({temperatureLogs.length})
+            {t('tabTemperature', { count: temperatureLogs.length })}
           </button>
           <button
             type="button"
@@ -219,7 +289,7 @@ export function ProductionSafetyWorkspace({
             }`}
           >
             <Star className="w-3.5 h-3.5" />
-            Sensory QC ({sensoryEvaluations.length})
+            {t('tabSensory', { count: sensoryEvaluations.length })}
           </button>
         </div>
       </div>
@@ -232,11 +302,13 @@ export function ProductionSafetyWorkspace({
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4"
           >
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Schedule Batch Production (Appendix A)
+              {t('appendixAHeading')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Date</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('dateLabel')}
+                </span>
                 <input
                   type="date"
                   required
@@ -246,7 +318,9 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block lg:col-span-2">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Product / Formula</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('productFormulaLabel')}
+                </span>
                 <input
                   required
                   maxLength={120}
@@ -257,23 +331,27 @@ export function ProductionSafetyWorkspace({
                 />
                 <datalist id="manual-recipe-names">
                   {STANDARDIZED_RECIPES.map((r) => (
-                    <option key={r.id} value={r.title} />
+                    <option key={r.id} value={getRecipeTitle(r, lang)} />
                   ))}
                 </datalist>
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Target Batch Size</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('targetBatchSizeLabel')}
+                </span>
                 <input
                   required
                   maxLength={40}
                   value={prodBatchSize}
                   onChange={(e) => setProdBatchSize(e.target.value)}
-                  placeholder="e.g., 24 croissants"
+                  placeholder={t('targetBatchSizePlaceholder')}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-1.5 text-sm"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Start Time</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('startTimeLabel')}
+                </span>
                 <input
                   required
                   maxLength={10}
@@ -286,7 +364,9 @@ export function ProductionSafetyWorkspace({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Operator</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('operatorLabel')}
+                </span>
                 <input
                   required
                   maxLength={80}
@@ -296,12 +376,14 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Production Notes</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('productionNotesLabel')}
+                </span>
                 <input
                   maxLength={500}
                   value={prodNotes}
                   onChange={(e) => setProdNotes(e.target.value)}
-                  placeholder="DDT target, steam timing, fold count..."
+                  placeholder={t('productionNotesPlaceholder')}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-1.5 text-sm"
                 />
               </label>
@@ -311,7 +393,7 @@ export function ProductionSafetyWorkspace({
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                {submittingProd ? 'Adding Batch...' : 'Add Production Batch'}
+                {submittingProd ? t('addingBatch') : t('addProductionBatch')}
               </button>
             </div>
           </form>
@@ -324,22 +406,24 @@ export function ProductionSafetyWorkspace({
               </div>
             ) : productionLogs.length === 0 ? (
               <div className="p-10 text-center">
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">No production batches scheduled</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {t('noBatchesScheduled')}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Log your first daily production batch above to track start times, yields, and operator assignments.
+                  {t('noBatchesDesc')}
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-start text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                     <tr>
-                      <th className="px-4 py-3 font-medium">Date · Time</th>
-                      <th className="px-4 py-3 font-medium">Product</th>
-                      <th className="px-4 py-3 font-medium">Batch / Yield</th>
-                      <th className="px-4 py-3 font-medium">Operator</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 text-right font-medium">Actions</th>
+                      <th className="px-4 py-3 font-medium">{t('colDateTime')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colProduct')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colBatchYield')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colOperator')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colStatus')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colActions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -350,27 +434,39 @@ export function ProductionSafetyWorkspace({
                           {row.endTime ? `–${row.endTime}` : ''}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{row.product}</p>
-                          {row.notes && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{row.notes}</p>}
+                          <p className="font-medium text-slate-900 dark:text-slate-100">
+                            {resolveDisplayRecipeTitle(row.product)}
+                          </p>
+                          {row.notes && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              {row.notes}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300 font-mono tabular-nums">
                           {row.batchSize}
-                          {row.actualYield ? ` → ${row.actualYield}` : ''}
+                          {row.actualYield ? ` ${yieldArrow} ${row.actualYield}` : ''}
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{row.operator}</td>
+                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                          {row.operator}
+                        </td>
                         <td className="px-4 py-3 text-xs font-medium">
                           {row.status === 'completed' ? (
                             <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Completed
+                              {t('statusCompleted')}
                             </span>
                           ) : row.status === 'in_progress' ? (
-                            <span className="text-amber-800 dark:text-amber-400">In Progress</span>
+                            <span className="text-amber-800 dark:text-amber-400">
+                              {t('statusInProgress')}
+                            </span>
                           ) : (
-                            <span className="text-slate-600 dark:text-slate-400">Scheduled</span>
+                            <span className="text-slate-600 dark:text-slate-400">
+                              {t('statusScheduled')}
+                            </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <td className="px-4 py-3 text-end whitespace-nowrap">
                           <div className="inline-flex items-center gap-2">
                             {row.status === 'scheduled' && (
                               <button
@@ -378,7 +474,7 @@ export function ProductionSafetyWorkspace({
                                 onClick={() => handleAdvanceStatus(row, 'in_progress')}
                                 className="px-2.5 py-1 text-xs font-medium text-amber-900 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 rounded hover:bg-amber-100 dark:hover:bg-amber-950"
                               >
-                                Start
+                                {t('statusStart')}
                               </button>
                             )}
                             {row.status !== 'completed' && (
@@ -387,14 +483,14 @@ export function ProductionSafetyWorkspace({
                                 onClick={() => handleAdvanceStatus(row, 'completed')}
                                 className="px-2.5 py-1 text-xs font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 rounded hover:bg-emerald-100 dark:hover:bg-emerald-950"
                               >
-                                Complete
+                                {t('statusComplete')}
                               </button>
                             )}
                             <button
                               type="button"
                               onClick={() => deleteOwnerDocument('productionLogs', row.id)}
                               className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-700 dark:hover:text-red-400"
-                              title="Delete batch"
+                              title={t('deleteBatchTitle')}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -418,11 +514,13 @@ export function ProductionSafetyWorkspace({
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4"
           >
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Record Equipment Temperature Check (Appendix B)
+              {t('appendixBHeading')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Date</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('dateLabel')}
+                </span>
                 <input
                   type="date"
                   required
@@ -432,7 +530,9 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Time</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('timeLabel')}
+                </span>
                 <input
                   required
                   maxLength={10}
@@ -442,33 +542,39 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block lg:col-span-2">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Equipment / Unit</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('equipmentUnitLabel')}
+                </span>
                 <input
                   required
                   maxLength={80}
                   value={tempEquipment}
                   onChange={(e) => setTempEquipment(e.target.value)}
-                  placeholder="Walk-in Chiller, Deck Oven 1..."
+                  placeholder={t('equipmentUnitPlaceholder')}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2.5 py-1.5 text-sm"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Zone Standard</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('zoneStandardLabel')}
+                </span>
                 <select
                   value={tempCategory}
                   onChange={(e) => setTempCategory(e.target.value as TempCategory)}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 text-sm bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                 >
-                  <option value="chilled">Chilled (0–5 °C)</option>
-                  <option value="frozen">Frozen (≤ −18 °C)</option>
-                  <option value="chocolate">Chocolate (15–18 °C)</option>
-                  <option value="ambient">Dry Goods (15–20 °C)</option>
-                  <option value="proofer">Proofer (24–30 °C)</option>
-                  <option value="oven">Oven (140–500 °C)</option>
+                  <option value="chilled">{t('zoneChilled')}</option>
+                  <option value="frozen">{t('zoneFrozen')}</option>
+                  <option value="chocolate">{t('zoneChocolate')}</option>
+                  <option value="ambient">{t('zoneAmbient')}</option>
+                  <option value="proofer">{t('zoneProofer')}</option>
+                  <option value="oven">{t('zoneOven')}</option>
                 </select>
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Reading (°C)</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('readingCLabel')}
+                </span>
                 <input
                   type="number"
                   step="0.1"
@@ -481,17 +587,21 @@ export function ProductionSafetyWorkspace({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
               <label className="block sm:col-span-2">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Corrective Action (if out of range)</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('correctiveActionLabel')}
+                </span>
                 <input
                   maxLength={300}
                   value={tempAction}
                   onChange={(e) => setTempAction(e.target.value)}
-                  placeholder="Optional unless Warning / Critical..."
+                  placeholder={t('correctiveActionOptPlaceholder')}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-1.5 text-sm"
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Initials</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('initialsLabel')}
+                </span>
                 <input
                   required
                   maxLength={10}
@@ -506,7 +616,7 @@ export function ProductionSafetyWorkspace({
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                {submittingTemp ? 'Logging...' : 'Log Temperature'}
+                {submittingTemp ? t('loggingTemp') : t('logTempBtn')}
               </button>
             </div>
           </form>
@@ -514,23 +624,25 @@ export function ProductionSafetyWorkspace({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
             {temperatureLogs.length === 0 ? (
               <div className="p-10 text-center">
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">No temperature checks logged</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {t('noTempLogs')}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Record chilled, freezer, chocolate room, or oven probe readings above to verify HACCP thresholds.
+                  {t('noTempLogsDesc')}
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-start text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                     <tr>
-                      <th className="px-4 py-3 font-medium">Date · Time</th>
-                      <th className="px-4 py-3 font-medium">Equipment</th>
-                      <th className="px-4 py-3 text-right font-medium">Temp (°C)</th>
-                      <th className="px-4 py-3 font-medium">Compliance</th>
-                      <th className="px-4 py-3 font-medium">Corrective Action</th>
-                      <th className="px-4 py-3 text-right font-medium">Initials</th>
-                      <th className="px-4 py-3 text-right font-medium">Remove</th>
+                      <th className="px-4 py-3 font-medium">{t('colDateTime')}</th>
+                      <th className="px-4 py-3 font-medium">{t('equipmentLabel')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colTempC')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colCompliance')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colCorrectiveAction')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colInitials')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colRemove')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -540,41 +652,46 @@ export function ProductionSafetyWorkspace({
                           {row.date} · {row.time}
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{row.equipment}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{row.category}</p>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">
+                            {row.equipment}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {getZoneLabel(row.category)}
+                          </p>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">
-                          {row.temperatureC.toFixed(1)} °C
+                        <td className="px-4 py-3 text-end font-mono tabular-nums font-semibold text-slate-900 dark:text-slate-100">
+                          {row.temperatureC.toFixed(1)} {degUnit}
                         </td>
                         <td className="px-4 py-3 text-xs font-medium">
                           {row.status === 'nominal' ? (
                             <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              Nominal
+                              {t('statusNominal')}
                             </span>
                           ) : row.status === 'warning' ? (
                             <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-400">
                               <AlertTriangle className="w-3.5 h-3.5" />
-                              Warning
+                              {t('statusWarning')}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-red-700 dark:text-red-400">
                               <AlertTriangle className="w-3.5 h-3.5" />
-                              Critical
+                              {t('statusCritical')}
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
                           {row.correctiveAction || '—'}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-slate-700 dark:text-slate-300">
+                        <td className="px-4 py-3 text-end font-mono text-xs text-slate-700 dark:text-slate-300">
                           {row.initials}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-end">
                           <button
                             type="button"
                             onClick={() => deleteOwnerDocument('temperatureLogs', row.id)}
                             className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-700 dark:hover:text-red-400"
+                            aria-label={t('colRemove')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -597,11 +714,13 @@ export function ProductionSafetyWorkspace({
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-5 space-y-4"
           >
             <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Batch Sensory Evaluation Scorecard (Appendix D — 1 to 5 Scale)
+              {t('appendixDHeading')}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Product / Recipe</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('productRecipeLabel')}
+                </span>
                 <input
                   required
                   maxLength={120}
@@ -612,7 +731,9 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Batch Date</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('batchDateLabel')}
+                </span>
                 <input
                   type="date"
                   required
@@ -622,7 +743,9 @@ export function ProductionSafetyWorkspace({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Evaluator</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('evaluatorLabel')}
+                </span>
                 <input
                   required
                   maxLength={80}
@@ -635,14 +758,16 @@ export function ProductionSafetyWorkspace({
 
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               {[
-                { label: 'Appearance', val: sensAppearance, set: setSensAppearance },
-                { label: 'Colour', val: sensColour, set: setSensColour },
-                { label: 'Texture', val: sensTexture, set: setSensTexture },
-                { label: 'Flavour', val: sensFlavour, set: setSensFlavour },
-                { label: 'Aroma', val: sensAroma, set: setSensAroma },
+                { key: 'app', label: t('sensoryAppearance'), val: sensAppearance, set: setSensAppearance },
+                { key: 'col', label: t('sensoryColour'), val: sensColour, set: setSensColour },
+                { key: 'tex', label: t('sensoryTexture'), val: sensTexture, set: setSensTexture },
+                { key: 'flav', label: t('sensoryFlavour'), val: sensFlavour, set: setSensFlavour },
+                { key: 'aro', label: t('sensoryAroma'), val: sensAroma, set: setSensAroma },
               ].map((attr) => (
-                <label key={attr.label} className="block">
-                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{attr.label} (1–5)</span>
+                <label key={attr.key} className="block">
+                  <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    {attr.label} {t('scaleHint')}
+                  </span>
                   <input
                     type="number"
                     min="1"
@@ -659,12 +784,14 @@ export function ProductionSafetyWorkspace({
 
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
               <label className="block flex-1">
-                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Quality Comments</span>
+                <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  {t('qualityCommentsLabel')}
+                </span>
                 <input
                   maxLength={600}
                   value={sensComments}
                   onChange={(e) => setSensComments(e.target.value)}
-                  placeholder="Crumb structure, crust caramelisation, balance..."
+                  placeholder={t('qualityCommentsPlaceholder')}
                   className="mt-1 w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-3 py-1.5 text-sm"
                 />
               </label>
@@ -674,7 +801,7 @@ export function ProductionSafetyWorkspace({
                 className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-medium text-white bg-slate-900 dark:bg-slate-100 dark:text-slate-900 rounded-md hover:bg-slate-800 dark:hover:bg-white transition-colors whitespace-nowrap shrink-0"
               >
                 <Plus className="w-4 h-4" />
-                {submittingSens ? 'Saving Score...' : 'Submit Evaluation'}
+                {submittingSens ? t('savingScore') : t('submitEvaluation')}
               </button>
             </div>
           </form>
@@ -682,51 +809,68 @@ export function ProductionSafetyWorkspace({
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
             {sensoryEvaluations.length === 0 ? (
               <div className="p-10 text-center">
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">No sensory evaluations recorded</p>
+                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                  {t('noSensoryLogs')}
+                </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Score baked batches across appearance, colour, texture, flavour, and aroma above.
+                  {t('noSensoryLogsDesc')}
                 </p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
+                <table className="w-full text-start text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                     <tr>
-                      <th className="px-4 py-3 font-medium">Product · Date</th>
-                      <th className="px-4 py-3 font-medium">Evaluator</th>
-                      <th className="px-4 py-3 text-right font-medium">App</th>
-                      <th className="px-4 py-3 text-right font-medium">Col</th>
-                      <th className="px-4 py-3 text-right font-medium">Tex</th>
-                      <th className="px-4 py-3 text-right font-medium">Flav</th>
-                      <th className="px-4 py-3 text-right font-medium">Aro</th>
-                      <th className="px-4 py-3 text-right font-medium">Overall</th>
-                      <th className="px-4 py-3 text-right font-medium">Remove</th>
+                      <th className="px-4 py-3 font-medium">{t('colProductDate')}</th>
+                      <th className="px-4 py-3 font-medium">{t('colEvaluator')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colApp')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colCol')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colTex')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colFlav')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colAro')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colOverall')}</th>
+                      <th className="px-4 py-3 text-end font-medium">{t('colRemove')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                     {sensoryEvaluations.map((row) => (
                       <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{row.recipeTitle}</p>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">
+                            {resolveDisplayRecipeTitle(row.recipeTitle)}
+                          </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
                             {row.batchDate}
                             {row.comments ? ` · ${row.comments}` : ''}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{row.evaluator}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">{row.appearance}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">{row.colour}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">{row.texture}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">{row.flavour}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">{row.aroma}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums font-semibold text-amber-800 dark:text-amber-400">
+                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
+                          {row.evaluator}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">
+                          {row.appearance}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">
+                          {row.colour}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">
+                          {row.texture}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">
+                          {row.flavour}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums text-xs text-slate-700 dark:text-slate-300">
+                          {row.aroma}
+                        </td>
+                        <td className="px-4 py-3 text-end font-mono tabular-nums font-semibold text-amber-800 dark:text-amber-400">
                           {row.overall.toFixed(1)} / 5
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-end">
                           <button
                             type="button"
                             onClick={() => deleteOwnerDocument('sensoryEvaluations', row.id)}
                             className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-700 dark:hover:text-red-400"
+                            aria-label={t('colRemove')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
